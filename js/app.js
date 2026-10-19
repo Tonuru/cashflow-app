@@ -1,13 +1,13 @@
 // Avvio dell'app e navigazione tra le schede.
 import * as D from "./data.js";
-import * as G from "./graph.js";
 import { h, toast, fill } from "./ui.js";
 import * as Mese from "./views/mese.js";
 import * as Anno from "./views/anno.js";
 import * as Comuni from "./views/comuni.js";
-import { wizard, settingsView } from "./views/setup.js";
+import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
+import { fmtDate } from "./model.js";
 
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -41,11 +41,22 @@ function drawHeader() {
   const s = D.status;
   const st = s.syncing ? h("span.sync.spin", {}, "⟳") : s.error ? h("span.sync.err", {}, "⚠︎") : h("span.sync", {}, "⟳");
   const title = TABS.find((t) => t.id === tab)?.label || "";
-  fill(header, h("div.top-title", {}, h("b", {}, "Cashflow"), h("span", {}, " · " + title)),
-    h("button.icon-btn", { onclick: () => D.sync(), "aria-label": "Aggiorna i dati" }, st));
+  const pend = D.pendingOps().length;
+  const cd = D.copyDate();
+  const info = [cd ? `dati del PC del ${fmtDate(cd)}` : "dati del PC non ancora arrivati",
+    pend ? `${pend} in attesa del PC` : null, D.unsentCount() ? `${D.unsentCount()} da inviare` : null].filter(Boolean).join(" · ");
+  fill(header, h("div.top-title", {}, h("b", {}, "Cashflow"), h("span", {}, " · " + title),
+    h("div.top-info", {}, info)),
+  h("button.icon-btn", { onclick: () => D.sync(), "aria-label": "Aggiorna i dati" }, st));
+  // conflitti: in evidenza finché non li leggi
+  const errs = D.newErrors();
+  if (errs.length) {
+    header.append(h("button.top-conflict", { onclick: conflictsSheet },
+      `⚠️ ${errs.length === 1 ? "1 modifica non applicata" : errs.length + " modifiche non applicate"}: `
+      + "qualcuno aveva già cambiato quella voce — tocca per vedere"));
+  }
   if (s.error && !s.syncing) {
-    header.append(h("div.top-err", { onclick: () => (s.needLogin ? G.login("") : D.sync()) },
-      s.needLogin ? "Sessione scaduta — tocca per accedere di nuovo" : `${s.error} — tocca per riprovare`));
+    header.append(h("div.top-err", { onclick: () => D.sync() }, s.offline ? s.error : `${s.error} — tocca per riprovare`));
   }
 }
 
@@ -107,28 +118,26 @@ function start() {
   fill(app, header, updBar, main, nav);
   render();
   D.sync();
+  wire();
 }
 
 async function boot() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  G.configure({ clientId: D.settings.clientId, tenant: D.settings.tenant });
   D.onChange((what) => (what === "status" ? drawHeader() : render()));
-  const res = await G.handleRedirect();
-  if (res && res !== "ok" && res !== "login_required") toast(res, "error");
-  if (res === "ok") try { sessionStorage.removeItem("cf.silent"); } catch { /* */ }
-
-  if (!D.isConfigured()) { restartSetup(); return; }
-  // sessione scaduta (dopo 24 ore): nuovo accesso automatico senza chiedere nulla, una volta
-  if (!G.isLoggedIn() && res !== "login_required") {
-    let tried = false;
-    try { tried = sessionStorage.getItem("cf.silent") === "1"; sessionStorage.setItem("cf.silent", "1"); } catch { /* */ }
-    if (!tried && navigator.onLine) { G.login("none"); return; }
-  }
+  if (!D.isLinked()) { restartSetup(); return; }
   start();
+}
+
+let wired = false;
+function wire() {
+  if (wired) return;
+  wired = true;
   checkUpdate();
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") { checkUpdate(); D.sync(); }
   });
+  window.addEventListener("online", () => D.sync());
+  setInterval(() => { if (document.visibilityState === "visible") D.sync(); }, 60000);
 }
 
 boot();

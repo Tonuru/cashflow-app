@@ -92,10 +92,10 @@ export function movimentoSheet(row, { onDone } = {}) {
         const changes = {};
         for (const [k, x] of Object.entries(v)) if ((row[k] ?? "") !== x) changes[k] = x;
         if (Object.keys(changes).length) await D.editMov("personal", year, row.id, changes);
-        toast("Modifica salvata su OneDrive ✓", "ok");
+        toast("Modifica salvata ✓", "ok");
       } else {
         await D.addMov("personal", { ...v, origine: "iPhone" });
-        toast("Salvato su OneDrive ✓", "ok");
+        toast("Salvato ✓", "ok");
       }
       onDone?.();
       if (again) {
@@ -122,7 +122,7 @@ export function movimentoSheet(row, { onDone } = {}) {
     actions.append(bMore, bSave);
   }
 
-  fill(s.body, 
+  fill(s.body, pendingWarn(row),
     editing && row.origine === M.ORIGINE_ANNUALE ? null : seg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)),
     field("Categoria", fCat), field("Sottocategoria", fSub, dlSub),
@@ -209,7 +209,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
         for (const [k, x] of Object.entries(v)) if ((row[k] ?? "") !== x) changes[k] = x;
         if (Object.keys(changes).length) await D.editMov("comune", year, row.id, changes);
       } else await D.addMov("comune", v);
-      toast("Salvato su OneDrive ✓", "ok");
+      toast("Salvato ✓", "ok");
       onDone?.();
       if (again) { fImp.value = ""; fDesc.value = ""; fNote.value = ""; fImp.focus(); } else s.close();
     } catch (e) { err.textContent = e.message; }
@@ -232,7 +232,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   } else actions.append(bSave);
 
   const cm = D.years("comune").flatMap((y) => D.comuneMovs(y));
-  fill(s.body, rimborso ? null : tipoSeg,
+  fill(s.body, pendingWarn(row), rimborso ? null : tipoSeg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)), payLbl, spesaOnly,
     field("Descrizione", fDesc, datalist("dl-cdesc", M.suggestions(cm, "descrizione"))), field("Note", fNote), err, actions);
   if (!editing && !rimborso) setTimeout(() => fImp.focus(), 300);
@@ -258,4 +258,12 @@ export function movRow(m, { onTap, sign = "−", showCat = true } = {}) {
       h("div.item-sub", {}, [M.fmtDate(m.data).slice(0, 5), showCat ? cat : "", comune ? "spesa comune" : m.metodo]
         .filter(Boolean).join(" · "))),
     h("div.item-amt", { style: { color } }, (neg ? "−" : "+") + M.fmtEur(Math.abs(v))));
+}
+
+/** Avviso se la voce ha già una modifica che il PC non ha ancora scritto (anche dall'altro telefono). */
+function pendingWarn(row) {
+  if (!row.id) return null;
+  const n = D.pendingFor(row.id).length;
+  return n ? h("div.warn", {}, "⚠️ Questa voce ha già una modifica in attesa del PC: se la cambi ancora, "
+    + "vale l'ultima modifica.") : null;
 }

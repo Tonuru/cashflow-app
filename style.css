@@ -171,3 +171,12 @@ table { border-collapse: separate; border-spacing: 0; font-size: 13px; font-vari
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--track); }
 .set-k { font-size: 13px; color: var(--muted); } .set-v { word-break: break-word; }
 .stats:not(.two) .stat-v { font-size: 15px; }
+.top-title { min-width: 0; flex: 1; } .top-info { font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+.top-conflict { width: 100%; margin-top: 6px; background: #5a1f25; color: #ffd0d0; border: 1px solid var(--red); border-radius: 10px;
+  padding: 9px 10px; font-size: 14px; font-weight: 700; text-align: left; animation: pulse 1.6s ease-in-out 3; }
+@keyframes pulse { 50% { background: #7a2a32; } }
+.conflict { background: var(--red-soft); border: 1px solid #5d2b31; border-radius: 10px; padding: 10px; margin: 6px 0; font-size: 14px; }
+textarea.code { font: 13px/1.3 ui-monospace, Menlo, monospace; color: var(--text); background: var(--input); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px; width: 100%; word-break: break-all; }
+.item.pending .item-sub::after { content: " · in attesa del PC"; color: var(--amber); }
+.warn { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 9px 10px; font-size: 14px; margin-bottom: 10px; }

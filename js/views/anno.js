@@ -150,7 +150,7 @@ function amountSheet(title, cur, onSave, extra) {
     const v = inp.value.trim() ? M.parseAmount(inp.value) : 0;
     if (v == null || v < 0) { err.textContent = "Importo non valido."; return; }
     const d = extra?.read?.();
-    busy(b, onSave(v, d).then(() => { toast("Salvato su OneDrive ✓", "ok"); s.close(); }).catch((e) => { err.textContent = e.message; }));
+    busy(b, onSave(v, d).then(() => { toast("Salvato ✓", "ok"); s.close(); }).catch((e) => { err.textContent = e.message; }));
   };
   fill(s.body, extra?.el || null, h("label.field", {}, h("span", {}, "Importo €"), inp), err, h("div.row.gap.actions", {}, b));
   setTimeout(() => inp.focus(), 300);

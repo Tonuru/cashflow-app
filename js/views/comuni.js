@@ -10,8 +10,8 @@ export function render(root, rerender) {
   const info = D.comuneInfo();
   if (!info) {
     fill(root, h("div.card.center", {}, h("div.card-title", {}, "Spese comuni"),
-      h("p.muted", {}, D.settings.comuneOff ? "Le spese comuni sono disattivate (Impostazioni)."
-        : "Nessun file Cashflow_Comune_<anno>.xlsx trovato nella cartella comune. Controlla la cartella in Impostazioni.")));
+      h("p.muted", {}, "Nella copia arrivata dal PC non ci sono spese comuni (sul PC non è impostata la cartella comune, "
+        + "oppure il PC non ha ancora sincronizzato).")));
     return;
   }
   const { y, m } = view;
@@ -41,7 +41,7 @@ export function render(root, rerender) {
       h("div.stat-s", {}, `${M.MESI[m - 1]} ${y}`)),
     h("div.stat", {}, h("div.stat-t", {}, "Mia quota del mese"),
       key ? h("div.stat-v", { style: { color: C.accent } }, M.fmtEur(M.comuneQuotaMonth(movs, key, y, m)))
-        : h("div.stat-s", {}, `Il tuo nome (${D.settings.utente}) non è tra le persone del file comune`)));
+        : h("div.stat-s", {}, `Il tuo nome (${D.profile().utente}) non è tra le persone del file comune`)));
 
   const q = h("input.search", { type: "search", placeholder: "Cerca…", value: view.q,
     oninput: (e) => { view.q = e.target.value; drawList(); } });

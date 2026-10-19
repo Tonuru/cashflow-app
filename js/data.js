@@ -1,222 +1,215 @@
-// Stato dell'app: impostazioni, file per anno, copia locale (per partire subito e senza rete), modifiche.
-import * as G from "./graph.js";
+// Stato dell'app: collegamento al Foglio Google, copia dei dati del PC, voci in attesa.
+//
+// Come funziona: il programma sul PC mette nel foglio una «copia» di tutti i dati; il telefono la legge.
+// Le voci nuove/modificate/eliminate dal telefono vanno nella «coda» del foglio; il PC le scrive negli
+// Excel su OneDrive. Se nel frattempo qualcuno aveva già cambiato la stessa voce, il PC NON sovrascrive
+// e la segnala come conflitto: il telefono lo mostra in alto.
 import * as M from "./model.js";
-import { readWorkbook } from "./xlsx.js";
 
 const K_SETTINGS = "cf.settings";
-const K_CACHE = "cf.cache";
-const K_OVERLAY = "cf.overlay";
+const K_CACHE = "cf.copy";
+const K_QUEUE = "cf.queue";
+const K_SEEN = "cf.seenErrors";
 
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k) || "null") ?? d; } catch { return d; } }
-function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* spazio pieno: pazienza */ } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* spazio pieno */ } }
 
-export const settings = Object.assign({
-  clientId: "", tenant: "consumers", utente: "", profilo: "michele", altra_persona: "",
-  personal: null, comune: null, comuneOff: false,
-}, load(K_SETTINGS, {}));
+export const settings = Object.assign({ url: "", token: "", device: "iPhone" }, load(K_SETTINGS, {}));
 export function saveSettings(patch = {}) { Object.assign(settings, patch); save(K_SETTINGS, settings); }
-export const isConfigured = () => !!(settings.clientId && settings.utente && settings.personal);
-export const isMichele = () => settings.profilo !== "tania";
+export const isLinked = () => !!(settings.url && settings.token);
 
-export const safeName = (s) => (String(s).trim().split("").map((ch) => (/[\p{L}\p{N}\-_ ]/u.test(ch) ? ch : "_")).join("")
-  .replace(/ /g, "_")) || "Utente";
-
-// ---------------------------------------------------------------- file per anno
-// files.personal[anno] / files.comune[anno] = { ref, name, eTag, data }
-export const files = { personal: {}, comune: {} };
-let cache = load(K_CACHE, {});
-for (const kind of ["personal", "comune"]) Object.assign(files[kind], cache[kind] || {});
-let overlay = load(K_OVERLAY, []);   // modifiche scritte ma non ancora visibili nel file scaricato
+let cache = load(K_CACHE, { copia: null, coda: [], errori: [], letto: null });
+let queue = load(K_QUEUE, []);           // operazioni del telefono non ancora confermate dal foglio
+let seen = new Set(load(K_SEEN, []));     // conflitti già letti
 const listeners = new Set();
 export const onChange = (fn) => listeners.add(fn);
 const emit = (what = "data") => listeners.forEach((fn) => fn(what));
-export const status = { syncing: false, last: cache.last || null, error: "" };
+export const status = { syncing: false, error: "", offline: false };
 
-function persistCache() {
-  cache = { personal: files.personal, comune: files.comune, last: status.last };
-  save(K_CACHE, cache);
-}
-export function clearCache() {
-  files.personal = {};
-  files.comune = {};
-  overlay = [];
-  save(K_OVERLAY, overlay);
-  localStorage.removeItem(K_CACHE);
+export const copia = () => cache.copia;
+export const profile = () => ({ utente: cache.copia?.utente || "", profilo: cache.copia?.profilo || "michele",
+  altra_persona: cache.copia?.altra_persona || "" });
+export const isMichele = () => profile().profilo !== "tania";
+export const lastRead = () => cache.letto;
+export const copyDate = () => cache.copia?.generata || null;
+
+// ---------------------------------------------------------------- codice di collegamento (dal PC)
+export function decodeCode(code) {
+  code = String(code || "").trim();
+  if (!code.startsWith("CF1.")) throw new Error("Il codice deve iniziare con CF1. — copialo da Impostazioni sul PC.");
+  let b = code.slice(4).replace(/-/g, "+").replace(/_/g, "/");
+  b += "=".repeat((4 - (b.length % 4)) % 4);
+  const j = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), (c) => c.charCodeAt(0))));
+  if (!j.u || !j.t) throw new Error("Codice incompleto.");
+  return { url: j.u, token: j.t };
 }
 
-const prefix = (kind) => (kind === "personal" ? `Cashflow_${safeName(settings.utente)}_` : "Cashflow_Comune_");
-export function yearOfName(kind, name) {
-  const m = name.match(/^(.*)_(\d{4})\.xlsx$/i);
-  return m && `${m[1]}_`.toLowerCase() === prefix(kind).toLowerCase() ? Number(m[2]) : null;
-}
-
-let changed = false;
-async function syncKind(kind, folder) {
-  if (!folder) { if (Object.keys(files[kind]).length) changed = true; files[kind] = {}; return; }
-  const items = await G.children(folder);
-  const seen = new Set();
-  for (const it of items) {
-    if (!it.file) continue;
-    const y = yearOfName(kind, it.name);
-    if (!y) continue;
-    seen.add(String(y));
-    const cur = files[kind][y];
-    if (cur && cur.eTag === it.eTag && cur.data) continue;
-    changed = true;
-    const sheets = await readWorkbook(await G.download(it));
-    const data = kind === "personal" ? await M.parsePersonal(sheets, settings.utente) : await M.parseComune(sheets);
-    files[kind][y] = { ref: G.refOf(it), name: it.name, eTag: it.eTag, data, loadedAt: Date.now() };
+// ---------------------------------------------------------------- dialogo con il foglio
+export async function call(payload, link = settings) {
+  let r;
+  try {
+    // text/plain: richiesta "semplice", senza controlli preliminari del browser (come vuole Apps Script)
+    r = await fetch(link.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ ...payload, token: link.token }), redirect: "follow" });
+  } catch {
+    const e = new Error("Nessuna connessione: le voci restano sul telefono e partono appena torna la rete.");
+    e.offline = true;
+    throw e;
   }
-  for (const y of Object.keys(files[kind])) if (!seen.has(y)) { delete files[kind][y]; changed = true; }
+  const j = await r.json().catch(() => null);
+  if (!j) throw new Error("Il foglio Google non ha risposto bene. Riprova tra poco.");
+  if (!j.ok) throw new Error(j.errore || "Errore dal foglio Google.");
+  return j;
 }
 
 export async function sync() {
-  if (status.syncing) return;
+  if (status.syncing || !isLinked()) return;
   status.syncing = true;
   status.error = "";
-  status.needLogin = false;
-  changed = false;
   emit("status");
+  const before = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length]);
   try {
-    await syncKind("personal", settings.personal);
-    await syncKind("comune", settings.comuneOff ? null : settings.comune);
-    status.last = M.nowIso();
-    persistCache();
+    const unsent = queue.filter((op) => !op.sent);
+    if (unsent.length) {
+      const r = await call({ azione: "invia", ops: unsent.map(strip), dispositivo: settings.device });
+      const ok = new Set(r.ricevute || []);
+      for (const op of queue) if (ok.has(op.qid)) op.sent = Date.now();
+      save(K_QUEUE, queue);
+    }
+    const st = await call({ azione: "stato" });
+    cache = { copia: st.copia || cache.copia, coda: st.coda || [], errori: st.errori || [], letto: M.nowIso() };
+    // inviate e non più in coda = il PC le ha già scritte (o rifiutate): non servono più qui
+    const inQueue = new Set(cache.coda.map((o) => o.qid));
+    queue = queue.filter((op) => !op.sent || inQueue.has(op.qid));
+    save(K_QUEUE, queue);
+    save(K_CACHE, cache);
+    status.offline = false;
   } catch (e) {
     status.error = e.message;
-    if (e instanceof G.NeedLogin) status.needLogin = true;
+    status.offline = !!e.offline;
   } finally {
     status.syncing = false;
-    emit(changed ? "data" : "status");
+    const after = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length]);
+    emit(after !== before ? "data" : "status");
   }
 }
+const strip = (op) => { const o = { ...op }; delete o.sent; return o; };
 
-// ---------------------------------------------------------------- vista dei dati (con le modifiche in arrivo)
-function applyOverlay(kind, year, movs) {
-  const now = Date.now();
-  let out = movs;
-  for (const op of overlay) {
-    if (op.kind !== kind || op.year !== year || now - op.t > 20 * 60 * 1000) continue;
-    if (op.op === "add" && !out.some((m) => m.id === op.row.id)) out = out.concat([{ ...op.row, _pending: true }]);
-    else if (op.op === "edit") out = out.map((m) => (m.id === op.id ? { ...m, ...op.changes, _pending: true } : m));
-    else if (op.op === "delete") out = out.filter((m) => m.id !== op.id);
+// ---------------------------------------------------------------- conflitti e voci rifiutate
+export function newErrors() { return (cache.errori || []).filter((e) => !seen.has(e.qid)); }
+export function markErrorsSeen() {
+  for (const e of cache.errori || []) seen.add(e.qid);
+  save(K_SEEN, [...seen].slice(-200));
+  emit("status");
+}
+
+// ---------------------------------------------------------------- dati (copia del PC + voci in attesa)
+const yearsOf = (kind) => Object.keys(cache.copia?.[kind] || {}).map(Number).sort();
+export const years = (kind) => {
+  const ys = new Set(yearsOf(kind));
+  for (const op of pendingOps()) if (op.kind === kind) ys.add(Number(op.year));
+  return [...ys].sort();
+};
+const fileData = (kind, y) => cache.copia?.[kind]?.[String(y)] || null;
+export const personalData = (y) => fileData("personal", y);
+export const comuneData = (y) => fileData("comune", y);
+
+/** Operazioni non ancora scritte dal PC: quelle in coda sul foglio (anche da altri telefoni) + le mie. */
+export function pendingOps() {
+  const byId = new Map();
+  for (const op of cache.coda || []) byId.set(op.qid, op);
+  for (const op of queue) byId.set(op.qid, op);
+  return [...byId.values()].sort((a, b) => (a.t || 0) - (b.t || 0));
+}
+export const pendingCount = () => queue.length;
+export const unsentCount = () => queue.filter((op) => !op.sent).length;
+
+function withPending(kind, y, movs) {
+  let out = movs.slice();
+  for (const op of pendingOps()) {
+    if (op.kind !== kind) continue;
+    if (op.op === "add") {
+      if (Number(op.row.data.slice(0, 4)) === y && !out.some((m) => m.id === op.row.id)) out.push({ ...op.row, _pending: true });
+    } else if (op.op === "edit") {
+      const i = out.findIndex((m) => m.id === op.id);
+      if (i >= 0) {
+        const m = { ...out[i], ...op.changes, _pending: true };
+        if (m.data && Number(m.data.slice(0, 4)) !== y) out.splice(i, 1); else out[i] = m;
+      } else if (op.changes.data && Number(op.changes.data.slice(0, 4)) === y && op.full) {
+        out.push({ ...op.full, ...op.changes, _pending: true });
+      }
+    } else if (op.op === "delete") out = out.filter((m) => m.id !== op.id);
   }
   return out;
 }
-function pruneOverlay() {
-  const now = Date.now();
-  overlay = overlay.filter((op) => {
-    if (now - op.t > 20 * 60 * 1000) return false;
-    const f = files[op.kind][op.year];
-    if (!f || !f.data || f.loadedAt < op.t) return true;
-    const movs = f.data.movimenti;
-    if (op.op === "add") return !movs.some((m) => m.id === op.row.id);
-    if (op.op === "delete") return movs.some((m) => m.id === op.id);
-    const m = movs.find((x) => x.id === op.id);
-    return m && Object.entries(op.changes).some(([k, v]) => k !== "modificato" && (m[k] ?? "") !== (v ?? ""));
-  });
-  save(K_OVERLAY, overlay);
-}
+export const personalMovs = (y) => withPending("personal", y, personalData(y)?.movimenti || []);
+export const comuneMovs = (y) => withPending("comune", y, comuneData(y)?.movimenti || []);
 
-export const years = (kind) => Object.keys(files[kind]).map(Number).sort();
-export const personalData = (y) => files.personal[y]?.data || null;
-export const comuneData = (y) => files.comune[y]?.data || null;
-
-export function personalMovs(y) {
-  const d = personalData(y);
-  return d ? applyOverlay("personal", y, d.movimenti) : [];
-}
-export function comuneMovs(y) {
-  const d = comuneData(y);
-  return d ? applyOverlay("comune", y, d.movimenti) : [];
-}
 export function comuneInfo() {
-  const ys = years("comune");
+  const ys = yearsOf("comune");
   return ys.length ? comuneData(ys[ys.length - 1]).info : null;
 }
-export const myKey = () => M.myQuotaKey(comuneInfo(), settings.utente);
+export const myKey = () => M.myQuotaKey(comuneInfo(), profile().utente);
 export function meInComune() {
-  const i = comuneInfo();
-  const k = myKey();
-  return !i ? settings.utente : k === "quota_a" ? i.persona_a : k === "quota_b" ? i.persona_b : settings.utente;
+  const i = comuneInfo(), k = myKey(), u = profile().utente;
+  return !i ? u : k === "quota_a" ? i.persona_a : k === "quota_b" ? i.persona_b : u;
 }
-
-/** Movimenti personali + la mia quota delle spese comuni (versione Michele), per un anno. */
 export function allMovs(y) {
   const own = personalMovs(y);
-  if (!isMichele()) return own;
-  return own.concat(M.comuneQuotaRows(comuneMovs(y), myKey()));
+  return isMichele() ? own.concat(M.comuneQuotaRows(comuneMovs(y), myKey())) : own;
 }
-/** Tutti gli anni insieme (per confronti e grafici anno per anno). */
 export function allMovsEveryYear() {
   const ys = new Set([...years("personal"), ...years("comune")]);
   return [...ys].flatMap((y) => allMovs(y));
 }
-export function categorie(y) {
-  const d = personalData(y) || personalData(years("personal").slice(-1)[0]);
-  return d ? d.categorie : [];
-}
-export function metodi(y) {
-  const d = personalData(y) || personalData(years("personal").slice(-1)[0]);
-  return d ? d.metodi : M.DEFAULT_METODI;
-}
-export function comuneCategorie(y) {
-  const d = comuneData(y) || comuneData(years("comune").slice(-1)[0]);
-  return d ? d.categorie : [];
-}
+const latest = (kind, y) => fileData(kind, y) || fileData(kind, yearsOf(kind).slice(-1)[0]);
+export const categorie = (y) => latest("personal", y)?.categorie || [];
+export const metodi = (y) => latest("personal", y)?.metodi || M.DEFAULT_METODI;
+export const comuneCategorie = (y) => latest("comune", y)?.categorie || [];
 
-// ---------------------------------------------------------------- scrittura
-function fileFor(kind, year) {
-  const f = files[kind][year];
-  if (!f) {
-    const what = kind === "personal" ? `Cashflow_${safeName(settings.utente)}_${year}.xlsx` : `Cashflow_Comune_${year}.xlsx`;
-    throw new Error(`Il file ${what} non esiste ancora: crealo aprendo l'app sul PC in quell'anno.`);
-  }
-  return f;
-}
-const kindName = (kind) => (kind === "personal" ? "personale" : "comune");
-
-async function afterWrite(op) {
+// ---------------------------------------------------------------- scrittura (va in coda, poi al PC)
+function qid() { return "q" + M.newId() + M.newId(); }
+function enqueue(op) {
+  op.qid = qid();
   op.t = Date.now();
-  overlay.push(op);
-  save(K_OVERLAY, overlay);
-  emit();
-  // il file scaricato può arrivare in ritardo di qualche secondo: le modifiche restano visibili nel frattempo
-  setTimeout(() => sync().then(pruneOverlay).then(emit), 4000);
+  queue.push(op);
+  save(K_QUEUE, queue);
+  emit("data");
+  sync();
 }
+function findMov(kind, year, id) {
+  return (kind === "personal" ? personalMovs(year) : comuneMovs(year)).find((m) => m.id === id);
+}
+const clean = (row) => Object.fromEntries(Object.entries(row).filter(([k]) => !k.startsWith("_")));
 
 export async function addMov(kind, row) {
-  const year = Number(row.data.slice(0, 4));
-  const f = fileFor(kind, year);
   const full = { ...row, id: M.newId(), inserito: M.nowIso(), modificato: "" };
   if (kind === "personal") full.origine = full.origine || "iPhone";
   else full.inserito_da = full.inserito_da || meInComune();
-  await G.addRow(f.ref, kindName(kind), full);
-  await afterWrite({ op: "add", kind, year, row: full });
+  enqueue({ op: "add", kind, year: Number(full.data.slice(0, 4)), row: full });
   return full;
 }
 
+/** Modifica: manda anche i valori che avevo visto, così il PC capisce se qualcuno li ha cambiati nel frattempo. */
 export async function editMov(kind, year, id, changes) {
-  const newYear = changes.data ? Number(changes.data.slice(0, 4)) : year;
-  if (newYear !== year) {
-    // cambio d'anno: la voce passa nel file dell'altro anno
-    const cur = (kind === "personal" ? personalMovs(year) : comuneMovs(year)).find((m) => m.id === id);
-    const row = { ...cur, ...changes };
-    delete row._row; delete row._pending; delete row.id;
-    fileFor(kind, newYear);
-    await addMov(kind, row);
-    await deleteMov(kind, year, id);
-    return;
-  }
-  const f = fileFor(kind, year);
-  const ch = { ...changes, modificato: M.nowIso() };
-  await G.editRow(f.ref, kindName(kind), id, ch);
-  await afterWrite({ op: "edit", kind, year, id, changes: ch });
+  const cur = findMov(kind, year, id);
+  if (!cur) throw new Error("Voce non trovata.");
+  const before = Object.fromEntries(Object.keys(changes).map((k) => [k, cur[k] ?? ""]));
+  enqueue({ op: "edit", kind, year, id, changes: { ...changes, modificato: M.nowIso() }, before, full: clean(cur) });
 }
 
 export async function deleteMov(kind, year, id) {
-  const f = fileFor(kind, year);
-  await G.deleteRow(f.ref, kindName(kind), id);
-  await afterWrite({ op: "delete", kind, year, id });
+  const cur = findMov(kind, year, id);
+  const before = cur ? Object.fromEntries(["data", "tipo", "importo", "categoria", "descrizione", "pagato_da",
+    "quota_a", "quota_b"].filter((k) => k in cur).map((k) => [k, cur[k] ?? ""])) : {};
+  enqueue({ op: "delete", kind, year, id, before });
 }
 
+/** Avviso se la voce che sto per toccare ha già modifiche in attesa (anche dall'altro telefono). */
+export function pendingFor(id) {
+  return pendingOps().filter((op) => op.id === id || op.row?.id === id);
+}
+
+export function resetAll() {
+  for (const k of [K_SETTINGS, K_CACHE, K_QUEUE, K_SEEN]) localStorage.removeItem(k);
+}
