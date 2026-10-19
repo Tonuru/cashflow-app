@@ -2,6 +2,7 @@
 import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, toast, busy, confirmBox, fill, sheet } from "../ui.js";
+import * as L from "../lock.js";
 
 export function wizard(root, done) {
   const code = h("textarea.code", { rows: 4, placeholder: "CF1.…", autocapitalize: "off", autocorrect: "off", spellcheck: false });
@@ -21,7 +22,7 @@ export function wizard(root, done) {
     done();
   })(), "Collego…");
   fill(root,
-    h("div.wiz-head", {}, h("div.logo", {}, "💶"), h("h1", {}, "Cashflow")),
+    h("div.wiz-head", {}, h("div.logo", {}, h("img", { src: "icons/logo.png", alt: "" })), h("h1", {}, "Cashflow")),
     h("div.card.wiz", {},
       h("h2", {}, "Collega il telefono"),
       h("p", {}, "Sul PC apri Cashflow → Impostazioni → «App per iPhone» e copia il codice di collegamento "
@@ -67,6 +68,7 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
       row("Voci in attesa del PC", String(D.pendingOps().length), null),
       row("Avvisi", errs ? `${errs} modifiche non applicate` : "nessuno", h("button.btn.small-btn", { onclick: conflictsSheet }, "Vedi")),
       h("button.btn.wide", { onclick: () => D.sync() }, "Aggiorna adesso")),
+    securityCard(rerender),
     h("div.card", {}, h("div.card-title", {}, "Collegamento"),
       row("Nome di questo telefono", D.settings.device, h("button.btn.small-btn", { onclick: () => editName(rerender) }, "Cambia")),
       row("Codice di collegamento", "salvato su questo telefono", h("button.btn.small-btn", { onclick: () => editCode(rerender) }, "Cambia")),
@@ -114,4 +116,40 @@ function editCode(rerender) {
   })(), "Controllo…");
   fill(s.body, h("p.muted", {}, "Serve solo se hai ricollegato il foglio Google dal PC. Il codice si copia da "
     + "Cashflow sul PC → Impostazioni → App per iPhone."), h("label.field", {}, h("span", {}, "Nuovo codice"), code), err, b);
+}
+
+function securityCard(rerender) {
+  const st = L.lockSettings();
+  const on = L.needsLock();
+  const card = h("div.card", {}, h("div.card-title", {}, "🔒 Blocco con Face ID"));
+  const msg = h("div.form-err");
+  const toggle = h("button.btn.wide" + (on ? "" : ".primary"), {}, on ? "Disattiva Face ID" : "Attiva Face ID");
+  toggle.onclick = () => busy(toggle, (async () => {
+    msg.textContent = "";
+    try {
+      if (on) {
+        if (!(await L.verify())) return;
+        L.disable();
+        toast("Face ID disattivato");
+      } else {
+        if (!(await L.supported())) { msg.textContent = "Questo telefono non permette Face ID alle app web (serve iOS 16 o più recente e Face ID attivo)."; return; }
+        await L.enable(D.settings.device || D.profile().utente);
+        toast("Face ID attivo ✓", "ok");
+      }
+      rerender();
+    } catch (e) {
+      msg.textContent = e.name === "NotAllowedError" ? "Annullato." : e.message;
+    }
+  })(), "Attendi…");
+  const opts = [[0, "Subito"], [60, "Dopo 1 minuto"], [300, "Dopo 5 minuti"], [900, "Dopo 15 minuti"]];
+  const sel = h("select", { onchange: (e) => { L.setAfter(Number(e.target.value)); toast("Salvato ✓", "ok"); } },
+    opts.map(([v, t]) => h("option", { value: v }, t)));
+  sel.value = String(st.after ?? 60);
+  fill(card, card.firstChild,
+    h("p.muted.small", {}, on ? "Attivo: per aprire Cashflow serve il tuo volto (o il codice dell'iPhone se Face ID non riesce)."
+      : "Per aprire Cashflow servirà il tuo volto. La prima volta l'iPhone chiede il permesso e salva una chiave d'accesso "
+        + "per Cashflow nel portachiavi."),
+    on ? h("label.field", {}, h("span", {}, "Quando torni nell'app, chiedi Face ID"), sel) : null,
+    toggle, msg);
+  return card;
 }

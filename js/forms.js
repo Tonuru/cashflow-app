@@ -178,10 +178,32 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
     tipo = v;
     spesaOnly.style.display = v === M.T.SPESA ? "" : "none";
     payLbl.firstChild.textContent = v === M.T.RIMBORSO ? "Chi dà i soldi" : "Pagato da";
+    drawRimb();
   });
   const payLbl = field("Pagato da", payer);
+  // rimborso: frase chiara su chi dà i soldi a chi e come restano i conti
+  const rimbInfo = h("div.rimb-info");
+  const saldo = M.comuneSaldo(D.comuneMovs(year), pa, pb);
+  const drawRimb = () => {
+    if (tipo !== M.T.RIMBORSO) { fill(rimbInfo); return; }
+    const who = payer.get(), to = who === pa ? pb : pa;
+    const imp = M.parseAmount(fImp.value) || 0;
+    let after = "";
+    if (saldo.debitore === who) {
+      const rest = M.pyRound2(saldo.importo - imp);
+      after = Math.abs(rest) < 0.005 ? "Dopo siete in pari ✅" : rest > 0 ? `Dopo ${who} deve ancora ${M.fmtEur(rest)} a ${to}`
+        : `Attenzione: è più del dovuto, dopo sarà ${to} a dovere ${M.fmtEur(-rest)} a ${who}`;
+    } else if (saldo.debitore) {
+      after = `Attenzione: ora è ${to} che deve ${M.fmtEur(saldo.importo)} a ${who}: forse va invertito «Chi dà i soldi».`;
+    }
+    fill(rimbInfo, h("div", {}, h("b", {}, who), " dà ", h("b", {}, M.fmtEur(imp)), " a ", h("b", {}, to)),
+      after ? h("div.small", {}, after) : null);
+  };
+  fImp.addEventListener("input", drawRimb);
+  payer.addEventListener("click", () => setTimeout(drawRimb));
   spesaOnly.style.display = tipo === M.T.SPESA ? "" : "none";
   if (tipo === M.T.RIMBORSO) payLbl.firstChild.textContent = "Chi dà i soldi";
+  drawRimb();
   const err = errBox();
 
   const read = () => {
@@ -233,7 +255,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
 
   const cm = D.years("comune").flatMap((y) => D.comuneMovs(y));
   fill(s.body, pendingWarn(row), rimborso ? null : tipoSeg,
-    h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)), payLbl, spesaOnly,
+    h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)), payLbl, rimbInfo, spesaOnly,
     field("Descrizione", fDesc, datalist("dl-cdesc", M.suggestions(cm, "descrizione"))), field("Note", fNote), err, actions);
   if (!editing && !rimborso) setTimeout(() => fImp.focus(), 300);
 }

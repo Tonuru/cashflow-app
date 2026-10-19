@@ -6,8 +6,9 @@ import * as Anno from "./views/anno.js";
 import * as Comuni from "./views/comuni.js";
 import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
+import * as L from "./lock.js";
 
-export const APP_VERSION = "1.1.1";
+export const APP_VERSION = "1.2.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -127,6 +128,7 @@ async function boot() {
   try { navigator.storage?.persist?.(); } catch { /* */ }
   D.onChange((what) => (what === "status" ? drawHeader() : render()));
   if (!D.isLinked()) { restartSetup(); return; }
+  L.wireLock(() => { D.resetAll(); restartSetup(); });
   start();
 }
 

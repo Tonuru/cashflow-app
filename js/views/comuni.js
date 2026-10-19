@@ -71,7 +71,8 @@ function defaultDate() {
 function comuneRow(x, pa, pb, key, onTap) {
   const rimb = x.tipo === M.T.RIMBORSO;
   const mine = key && !rimb ? (x.importo * Number(x[key] || 0)) / 100 : null;
-  const sub = rimb ? `${M.fmtDate(x.data).slice(0, 5)} · rimborso da ${x.pagato_da}`
+  const to = x.pagato_da === pa ? pb : pa;
+  const sub = rimb ? `${M.fmtDate(x.data).slice(0, 5)} · rimborso: ${x.pagato_da} dà i soldi a ${to}`
     : `${M.fmtDate(x.data).slice(0, 5)} · ${x.categoria || "—"} · pagato da ${x.pagato_da || "?"} · ${pa} ${Number(x.quota_a ?? 0)}% / ${pb} ${Number(x.quota_b ?? 0)}%`;
   return h("button.item" + (x._pending ? ".pending" : ""), { type: "button", onclick: onTap },
     h("div.item-main", {}, h("div.item-title", {}, x.descrizione || (rimb ? "Rimborso" : x.categoria || "—")),
