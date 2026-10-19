@@ -1,0 +1,9 @@
+/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+/version.json
+  Cache-Control: no-store
+/sw.js
+  Cache-Control: no-cache

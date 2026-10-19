@@ -1,0 +1,549 @@
+// Lettura dei file Cashflow e calcoli: porting fedele di cashflow/core (store.py, calc.py, util.py).
+// Le date sono stringhe "AAAA-MM-GG", le date con ora "AAAA-MM-GGTHH:MM:SS".
+
+export const T = {
+  USCITA: "Uscita", ENTRATA: "Entrata", STIPENDIO: "Stipendio", INVESTIMENTO: "Investimento",
+  SPESA: "Spesa", RIMBORSO: "Rimborso",
+};
+export const TIPI_ENTRATA = [T.STIPENDIO, T.ENTRATA, T.INVESTIMENTO];
+export const ORIGINE_ANNUALE = "Annuale";
+export const ORIGINE_INVESTIMENTI = "Investimenti";
+export const ORIGINE_COMUNE = "Comune";
+export const CAT_EXTRA_ANNO = "Extra dell'anno";
+export const CAT_SPESE_COMUNI = "Spese comuni";
+export const EXTRA_STIPENDIO = ["Tredicesima", "Quattordicesima"];
+export const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto",
+  "Settembre", "Ottobre", "Novembre", "Dicembre"];
+export const MESI_BREVI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+
+// ------------------------------------------------------------------ colonne (come schema.py)
+const col = (key, label, kind = "text", aliases = []) => ({ key, label, kind, aliases });
+export const PERSONAL_COLS = [
+  col("data", "Data", "date"), col("tipo", "Tipo"), col("importo", "Importo", "money", ["euro", "€", "valore"]),
+  col("categoria", "Categoria"), col("sottocategoria", "Sottocategoria", "text", ["sotto categoria"]),
+  col("descrizione", "Descrizione"), col("metodo", "Metodo", "text", ["metodo di pagamento", "pagamento"]),
+  col("note", "Note"), col("origine", "Origine"), col("inserito", "Inserito il", "datetime"),
+  col("modificato", "Modificato il", "datetime"), col("id", "ID"),
+];
+export const COMUNE_COLS = [
+  col("data", "Data", "date"), col("tipo", "Tipo"), col("importo", "Importo", "money", ["euro", "€", "valore"]),
+  col("categoria", "Categoria"), col("descrizione", "Descrizione"),
+  col("pagato_da", "Pagato da", "text", ["pagatoda", "chi ha pagato"]),
+  col("quota_a", "Quota A %", "percent"), col("quota_b", "Quota B %", "percent"),
+  col("note", "Note"), col("inserito_da", "Inserito da"), col("inserito", "Inserito il", "datetime"),
+  col("modificato", "Modificato il", "datetime"), col("id", "ID"),
+];
+const CAT_PERSONAL_COLS = [
+  col("tipo", "Tipo"), col("categoria", "Categoria"), col("budget", "Budget mensile", "money", ["budget"]),
+  col("colore", "Colore"), col("sottocategorie", "Sottocategorie", "text", ["specifiche", "sotto categorie"]),
+];
+const CAT_COMUNE_COLS = [col("categoria", "Categoria"), col("budget", "Budget mensile", "money", ["budget"]),
+  col("colore", "Colore")];
+const METODI_COLS = [col("metodo", "Metodo")];
+export const DEFAULT_METODI = ["Carta di debito", "Carta di credito", "Contanti", "Bonifico", "Satispay", "PayPal",
+  "Addebito diretto"];
+
+export const norm = (s) => Array.from(String(s ?? "").toLowerCase()).filter((ch) => /[\p{L}\p{N}]/u.test(ch)).join("");
+const matches = (c, h) => { const n = norm(h); return n === norm(c.label) || c.aliases.some((a) => norm(a) === n); };
+
+export function headerMap(header, cols, quotaKeys = []) {
+  const out = {};
+  const used = new Set();
+  let qi = 0;
+  (header || []).forEach((h, idx) => {
+    if (h == null) return;
+    if (quotaKeys.length && norm(h).startsWith("quota")) {
+      if (qi < quotaKeys.length) { out[idx] = quotaKeys[qi]; used.add(quotaKeys[qi]); }
+      qi++;
+      return;
+    }
+    for (const c of cols) {
+      if (used.has(c.key)) continue;
+      if (matches(c, h)) { out[idx] = c.key; used.add(c.key); break; }
+    }
+  });
+  return out;
+}
+
+export function readTable(rows, cols, quotaKeys = []) {
+  if (!rows || !rows.length) return [];
+  const hmap = headerMap(rows[0], cols, quotaKeys);
+  const out = [];
+  for (let r = 1; r < rows.length; r++) {
+    const values = rows[r] || [];
+    const row = { _row: r + 1 };
+    let empty = true;
+    for (const [idx, key] of Object.entries(hmap)) {
+      let v = values[idx];
+      if (typeof v === "string") v = v.trim();
+      if (v === undefined) v = null;
+      row[key] = v;
+      if (v !== null && v !== "") empty = false;
+    }
+    if (!empty) out.push(row);
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ util.py
+export const pyRound2 = (x) => Number(Number(x).toFixed(2));
+const pad = (n, w = 2) => String(n).padStart(w, "0");
+export const isoDate = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+const EPOCH = Date.UTC(1899, 11, 30);
+
+export function serialToIso(v, withTime = false) {
+  const ms = EPOCH + Math.round(Number(v) * 86400000);
+  const d = new Date(ms);
+  if (isNaN(d)) return null;
+  if (!withTime) return isoDate(d);
+  return `${isoDate(d)}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+export function isoToSerial(iso) {
+  const [d, t] = String(iso).split("T");
+  const [y, m, dd] = d.split("-").map(Number);
+  let ms = Date.UTC(y, m - 1, dd);
+  if (t) { const [h, mi, s] = t.split(":").map(Number); ms += ((h * 60 + mi) * 60 + (s || 0)) * 1000; }
+  return (ms - EPOCH) / 86400000;
+}
+
+function validYmd(y, m, d) {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? isoDate(dt) : null;
+}
+
+export function parseDate(v) {
+  if (v == null || v === "" || typeof v === "boolean") return null;
+  if (typeof v === "number") return serialToIso(Math.floor(v));
+  const s = String(v).trim();
+  let m;
+  if ((m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/))) return validYmd(+m[3], +m[2], +m[1]);
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/))) return validYmd(+m[1], +m[2], +m[3]);
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/))) {
+    const yy = +m[3];
+    return validYmd(yy < 69 ? 2000 + yy : 1900 + yy, +m[2], +m[1]);
+  }
+  return null;
+}
+
+export function parseDatetime(v) {
+  if (v == null || v === "" || typeof v === "boolean") return null;
+  if (typeof v === "number") return serialToIso(v, true);
+  const s = String(v).trim();
+  let m;
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{2})(?::(\d{2}))?$/))) {
+    const d = validYmd(+m[3], +m[2], +m[1]);
+    return d ? `${d}T${pad(+m[4])}:${m[5]}:${pad(+(m[6] || 0))}` : null;
+  }
+  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/))) {
+    const d = validYmd(+m[1], +m[2], +m[3]);
+    return d ? `${d}T${m[4]}:${m[5]}:${m[6]}` : null;
+  }
+  const d = parseDate(s);
+  return d ? `${d}T00:00:00` : null;
+}
+
+export function parseAmount(v) {
+  if (v == null || v === "" || typeof v === "boolean") return null;
+  if (typeof v === "number") return isFinite(v) ? pyRound2(v) : null;
+  let s = String(v).trim().replace(/€/g, "").replace(/[  ]/g, "");
+  if (!s) return null;
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  if (!/^[-+]?\d+(\.\d+)?$/.test(s)) return null;
+  return pyRound2(parseFloat(s));
+}
+
+export const clean = (v) => (v == null ? "" : String(v).trim());
+
+export function fmtEur(x, sign = false) {
+  if (x == null) return "";
+  const v = pyRound2(x);
+  const [i, d] = Math.abs(v).toFixed(2).split(".");
+  let s = i.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + d;
+  if (v < 0) s = "-" + s;
+  else if (sign && v > 0) s = "+" + s;
+  return s + " €";
+}
+export function fmtDate(iso) {
+  if (!iso) return "";
+  const [d, t] = iso.split("T");
+  const [y, m, dd] = d.split("-");
+  return `${dd}/${m}/${y}` + (t ? " " + t.slice(0, 5) : "");
+}
+export function nowIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+export const todayIso = () => nowIso().slice(0, 10);
+export function newId() {
+  const b = new Uint8Array(5);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+export function splitSubs(v) {
+  const out = [];
+  for (let x of String(v ?? "").replace(/,/g, ";").split(";")) {
+    x = x.trim();
+    if (x && !out.some((o) => o.toLowerCase() === x.toLowerCase())) out.push(x);
+  }
+  return out;
+}
+
+// str() di Python per gli ID stabili delle righe aggiunte a mano
+function pyStr(v) {
+  if (v == null || v === "" || v === 0 || v === false) return "";
+  if (typeof v === "number") return Number.isInteger(v) ? v.toFixed(1) : String(v);
+  return String(v);
+}
+async function sha1hex(s) {
+  const h = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(h), (x) => x.toString(16).padStart(2, "0")).join("");
+}
+async function stableId(row, seen) {
+  const basis = ["data", "tipo", "importo", "categoria", "descrizione", "pagato_da"].map((k) => pyStr(row[k])).join("|");
+  const n = seen[basis] || 0;
+  seen[basis] = n + 1;
+  return "x" + (await sha1hex(`${basis}#${n}`)).slice(0, 9);
+}
+
+function readInfo(sheets) {
+  const out = {};
+  const rows = sheets.Info;
+  if (!rows) return out;
+  for (let r = 1; r < rows.length; r++) {
+    const [a, b] = rows[r] || [];
+    if (a == null || a === "") { if (Object.keys(out).length) break; continue; }
+    out[String(a).trim()] = b ?? null;
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ store.py: parse
+export function normTipoPersonale(tipo, importo) {
+  const t = norm(tipo);
+  let out;
+  if (["entrata", "entrate", "e", "in", "ricavo", "incasso", "entrataextra", "extra"].includes(t)) out = T.ENTRATA;
+  else if (["stipendio", "stipendi", "salario", "busta", "bustapaga"].includes(t)) out = T.STIPENDIO;
+  else if (t.startsWith("investiment")) out = T.INVESTIMENTO;
+  else out = T.USCITA;
+  if (importo != null && importo < 0 && out !== T.INVESTIMENTO) {
+    importo = -importo;
+    if (!t) out = T.USCITA;
+  }
+  return [out, importo];
+}
+
+export async function parsePersonal(sheets, utente = "") {
+  const data = { movimenti: [], categorie: [], metodi: [...DEFAULT_METODI], info: {} };
+  if (sheets.Movimenti) {
+    const seen = {};
+    for (const r of readTable(sheets.Movimenti, PERSONAL_COLS)) {
+      let importo = parseAmount(r.importo);
+      const d = parseDate(r.data);
+      if (importo == null && d == null && !r.descrizione) continue;
+      let tipo;
+      [tipo, importo] = normTipoPersonale(r.tipo, importo);
+      const m = {
+        data: d, tipo, importo: importo || 0, categoria: clean(r.categoria), sottocategoria: clean(r.sottocategoria),
+        descrizione: clean(r.descrizione), metodo: clean(r.metodo), note: clean(r.note),
+        origine: clean(r.origine) || "Excel", inserito: parseDatetime(r.inserito), modificato: parseDatetime(r.modificato),
+      };
+      m.id = clean(r.id) || (await stableId(m, seen));
+      m._row = r._row;
+      data.movimenti.push(m);
+    }
+  }
+  if (sheets.Categorie) {
+    const cats = [];
+    for (const r of readTable(sheets.Categorie, CAT_PERSONAL_COLS)) {
+      const name = clean(r.categoria);
+      if (!name) continue;
+      cats.push({ tipo: normTipoPersonale(r.tipo, null)[0], categoria: name, budget: parseAmount(r.budget),
+        colore: clean(r.colore), sottocategorie: splitSubs(r.sottocategorie) });
+    }
+    data.categorie = cats;
+  }
+  if (sheets.Metodi) {
+    const ms = readTable(sheets.Metodi, METODI_COLS).map((r) => clean(r.metodo)).filter(Boolean);
+    if (ms.length) data.metodi = ms;
+  }
+  const info = readInfo(sheets);
+  data.info = { utente: clean(info.Utente) || utente, salvato: parseDatetime(info["Ultimo salvataggio"]),
+    salvato_da: clean(info["Salvato da"]), anno: info.Anno ?? null };
+  return data;
+}
+
+export function normTipoComune(tipo) {
+  const t = norm(tipo);
+  return t.startsWith("rimbors") || ["pareggio", "saldo", "restituzione"].includes(t) ? T.RIMBORSO : T.SPESA;
+}
+
+export async function parseComune(sheets) {
+  const info = readInfo(sheets);
+  const qa = parseAmount(info["Quota predefinita A %"]);
+  const data = {
+    movimenti: [], categorie: [],
+    info: { persona_a: clean(info["Persona A"]) || "Persona A", persona_b: clean(info["Persona B"]) || "Persona B",
+      quota_a: qa != null ? qa : 50, riporto_a: parseAmount(info["Saldo riportato A"]) || 0,
+      salvato: parseDatetime(info["Ultimo salvataggio"]), salvato_da: clean(info["Salvato da"]) },
+  };
+  if (sheets.Movimenti) {
+    const seen = {};
+    const qdef = data.info.quota_a;
+    for (const r of readTable(sheets.Movimenti, COMUNE_COLS, ["quota_a", "quota_b"])) {
+      const importo = parseAmount(r.importo);
+      const d = parseDate(r.data);
+      if (importo == null && d == null && !r.descrizione) continue;
+      const tipo = normTipoComune(r.tipo);
+      let qa_ = parseAmount(r.quota_a), qb_ = parseAmount(r.quota_b);
+      if (tipo === T.SPESA) {
+        if (qa_ == null && qb_ == null) { qa_ = qdef; qb_ = 100 - qdef; }
+        else if (qa_ == null) qa_ = 100 - qb_;
+        else if (qb_ == null) qb_ = 100 - qa_;
+      }
+      const m = {
+        data: d, tipo, importo: Math.abs(importo || 0), categoria: clean(r.categoria), descrizione: clean(r.descrizione),
+        pagato_da: clean(r.pagato_da), quota_a: qa_, quota_b: qb_, note: clean(r.note), inserito_da: clean(r.inserito_da),
+        inserito: parseDatetime(r.inserito), modificato: parseDatetime(r.modificato),
+      };
+      m.id = clean(r.id) || (await stableId(m, seen));
+      m._row = r._row;
+      data.movimenti.push(m);
+    }
+  }
+  if (sheets.Categorie) {
+    data.categorie = readTable(sheets.Categorie, CAT_COMUNE_COLS)
+      .filter((r) => clean(r.categoria))
+      .map((r) => ({ categoria: clean(r.categoria), budget: parseAmount(r.budget), colore: clean(r.colore) }));
+  }
+  return data;
+}
+
+// ------------------------------------------------------------------ calc.py
+const ym = (iso) => (iso ? [Number(iso.slice(0, 4)), Number(iso.slice(5, 7))] : [0, 0]);
+export const inMonth = (iso, y, m) => { const [a, b] = ym(iso); return a === y && b === m; };
+export const inYear = (iso, y) => !!iso && Number(iso.slice(0, 4)) === y;
+export const isAnnual = (m) => m.origine === ORIGINE_ANNUALE;
+export const isEntrata = (m) => TIPI_ENTRATA.includes(m.tipo || T.USCITA);
+
+export function monthTotals(movs, y, mo) {
+  let ent = 0, usc = 0, n = 0;
+  const uscCat = {}, entCat = {}, perTipo = {};
+  for (const m of movs) {
+    if (!inMonth(m.data, y, mo) || isAnnual(m)) continue;
+    n++;
+    const v = Number(m.importo || 0);
+    const cat = m.categoria || "Senza categoria";
+    const tipo = m.tipo || T.USCITA;
+    perTipo[tipo] = (perTipo[tipo] || 0) + v;
+    if (TIPI_ENTRATA.includes(tipo)) { ent += v; entCat[cat] = (entCat[cat] || 0) + v; }
+    else { usc += v; uscCat[cat] = (uscCat[cat] || 0) + v; }
+  }
+  for (const k in perTipo) perTipo[k] = pyRound2(perTipo[k]);
+  return { entrate: pyRound2(ent), uscite: pyRound2(usc), saldo: pyRound2(ent - usc), uscite_cat: uscCat,
+    entrate_cat: entCat, n, per_tipo: perTipo };
+}
+
+export function rimanenti(t) {
+  const pt = t.per_tipo;
+  const st = pt[T.STIPENDIO] || 0, inv = pt[T.INVESTIMENTO] || 0, ex = pt[T.ENTRATA] || 0, usc = t.uscite;
+  return { totale: pyRound2(st + inv + ex - usc), senza_extra: pyRound2(st + inv - usc), solo_stipendio: pyRound2(st - usc) };
+}
+
+export function categoryPivot(movs, y, mo = null, tipo = T.USCITA) {
+  const cats = new Map();
+  for (const m of movs) {
+    if ((m.tipo || T.USCITA) !== tipo || !inYear(m.data, y)) continue;
+    if (mo && ym(m.data)[1] !== mo) continue;
+    const c = m.categoria || "Senza categoria";
+    if (!cats.has(c)) cats.set(c, new Map());
+    const subs = cats.get(c);
+    const s = m.sottocategoria || "";
+    subs.set(s, (subs.get(s) || 0) + Number(m.importo || 0));
+  }
+  const out = [];
+  for (const [c, subs] of cats) {
+    const items = [...subs].map(([s, v]) => [s, pyRound2(v)]).sort((a, b) => b[1] - a[1]);
+    out.push([c, pyRound2([...subs.values()].reduce((a, b) => a + b, 0)), items]);
+  }
+  return out.sort((a, b) => b[1] - a[1]);
+}
+
+export function annual(movs, y) {
+  const out = { tredicesima: 0, quattordicesima: 0, extra: 0, extra_voci: [], righe: {} };
+  for (const m of movs) {
+    if (!isAnnual(m) || !inYear(m.data, y)) continue;
+    const v = Number(m.importo || 0);
+    const cat = m.categoria || "";
+    if (m.tipo === T.STIPENDIO && EXTRA_STIPENDIO.includes(cat)) {
+      const k = cat === "Tredicesima" ? "tredicesima" : "quattordicesima";
+      out[k] += v;
+      out.righe[k] = m;
+    } else { out.extra += v; out.extra_voci.push(m); }
+  }
+  out.stipendio = pyRound2(out.tredicesima + out.quattordicesima);
+  out.extra = pyRound2(out.extra);
+  return out;
+}
+
+export function medieAnno(movs, y) {
+  let n = 0;
+  const rest = { solo_stipendio: 0, senza_extra: 0, totale: 0 };
+  let extraStip = 0;
+  for (let mo = 1; mo <= 12; mo++) {
+    const t = monthTotals(movs, y, mo);
+    const extra = movs.filter((m) => m.tipo === T.STIPENDIO && EXTRA_STIPENDIO.includes(m.categoria)
+      && inMonth(m.data, y, mo) && !isAnnual(m)).reduce((a, m) => a + Number(m.importo || 0), 0);
+    extraStip += extra;
+    const stip = (t.per_tipo[T.STIPENDIO] || 0) - extra;
+    if (stip <= 0) continue;
+    n++;
+    const r = rimanenti(t);
+    for (const k in rest) rest[k] += r[k] - extra;
+  }
+  const an = annual(movs, y);
+  extraStip += an.tredicesima + an.quattordicesima;
+  const out = { mesi_validi: n, tredicesima_quattordicesima: pyRound2(extraStip) };
+  for (const k in rest) {
+    const media = n ? rest[k] / n : 0;
+    out[k] = pyRound2(media);
+    out[k + "_con_13_14"] = pyRound2(media + extraStip / 12);
+  }
+  return out;
+}
+
+export function subcategories(categorie, movs, tipo, categoria) {
+  const out = [], seen = new Set();
+  const cat = categorie.find((c) => (c.tipo || tipo) === tipo && c.categoria === categoria);
+  for (const s of cat?.sottocategorie || []) if (!seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); out.push(s); }
+  const used = new Map();
+  for (const m of movs) {
+    if ((m.tipo || T.USCITA) === tipo && m.categoria === categoria && m.sottocategoria) {
+      used.set(m.sottocategoria, (used.get(m.sottocategoria) || 0) + 1);
+    }
+  }
+  for (const [s] of [...used].sort((a, b) => b[1] - a[1])) {
+    if (!seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); out.push(s); }
+  }
+  return out;
+}
+
+export function colors(categorie) {
+  const out = {};
+  for (const c of categorie) out[c.categoria] = c.colore || "#9AA3AE";
+  if (!(CAT_SPESE_COMUNI in out)) out[CAT_SPESE_COMUNI] = "#C77DFF";
+  return out;
+}
+
+export function comuneSaldo(movs, pa, pb) {
+  const pagato = { [pa]: 0, [pb]: 0 }, quota = { [pa]: 0, [pb]: 0 }, rimb = { [pa]: 0, [pb]: 0 };
+  for (const m of movs) {
+    const v = Number(m.importo || 0);
+    const who = m.pagato_da;
+    if (m.tipo === T.RIMBORSO) { if (who in rimb) rimb[who] += v; continue; }
+    if (who in pagato) pagato[who] += v;
+    quota[pa] += (v * Number(m.quota_a || 0)) / 100;
+    quota[pb] += (v * Number(m.quota_b || 0)) / 100;
+  }
+  const sa = pagato[pa] - quota[pa] + rimb[pa] - rimb[pb];
+  const sb = pagato[pb] - quota[pb] + rimb[pb] - rimb[pa];
+  let debitore = null, creditore = null, importo = 0;
+  if (Math.abs(sa) >= 0.005) {
+    if (sa > 0) [debitore, creditore, importo] = [pb, pa, sa];
+    else [debitore, creditore, importo] = [pa, pb, -sa];
+  }
+  return { pagato, quota, rimborsi: rimb, saldo: { [pa]: pyRound2(sa), [pb]: pyRound2(sb) }, debitore, creditore,
+    importo: pyRound2(importo) };
+}
+
+export function comuneQuotaMonth(movs, key, y, mo) {
+  let tot = 0;
+  for (const m of movs) {
+    if (m.tipo !== T.SPESA || !inMonth(m.data, y, mo)) continue;
+    tot += (Number(m.importo || 0) * Number(m[key] || 0)) / 100;
+  }
+  return pyRound2(tot);
+}
+
+export function myQuotaKey(comuneInfo, utente) {
+  if (!comuneInfo) return null;
+  if (utente === comuneInfo.persona_a) return "quota_a";
+  if (utente === comuneInfo.persona_b) return "quota_b";
+  return null;
+}
+
+/** La mia quota di ogni spesa comune come spesa personale "virtuale" (come state.comune_quota_rows). */
+export function comuneQuotaRows(comuneMovs, key) {
+  if (!key) return [];
+  const out = [];
+  for (const m of comuneMovs) {
+    if (m.tipo !== T.SPESA || !m.data) continue;
+    const q = Number(m[key] || 0), imp = Number(m.importo || 0);
+    const v = pyRound2((imp * q) / 100);
+    if (!v) continue;
+    const note = `quota ${q.toFixed(0)}% di ${imp.toFixed(2)} €`.replace(/\./g, ",")
+      + (m.pagato_da ? ` · pagato da ${m.pagato_da}` : "");
+    out.push({ id: `com:${m.id}`, data: m.data, tipo: T.USCITA, importo: v, categoria: CAT_SPESE_COMUNI,
+      sottocategoria: m.categoria || "", descrizione: m.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE });
+  }
+  return out;
+}
+
+export function filterMovs(movs, { year, month, tipo, categoria, sotto, text, withAnnual = false } = {}) {
+  const q = (text || "").trim().toLowerCase();
+  const out = movs.filter((m) => {
+    if (isAnnual(m) && !withAnnual) return false;
+    if (year && !inYear(m.data, year)) return false;
+    if (month && ym(m.data)[1] !== month) return false;
+    if (tipo && (m.tipo || T.USCITA) !== tipo) return false;
+    if (categoria != null && (m.categoria || "Senza categoria") !== categoria) return false;
+    if (sotto != null && (m.sottocategoria || "") !== sotto) return false;
+    if (q) {
+      const hay = ["descrizione", "categoria", "sottocategoria", "note", "metodo", "pagato_da"]
+        .map((k) => m[k] || "").join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  return out.sort((a, b) => ((b.data || "") + (b.inserito || "")).localeCompare((a.data || "") + (a.inserito || "")));
+}
+
+export function suggestions(movs, field, categoria = null, limit = 30) {
+  const count = new Map();
+  for (const m of movs) {
+    if (categoria && m.categoria !== categoria) continue;
+    const v = (m[field] || "").trim();
+    if (v) count.set(v, (count.get(v) || 0) + 1);
+  }
+  return [...count].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([k]) => k);
+}
+
+export function pctText(rimane, entrate) {
+  if (!entrate || entrate <= 0) return "";
+  return `${((rimane / entrate) * 100).toFixed(0)}% rimane`;
+}
+
+/** Righe della tabella dell'anno (Panoramica). inc13/incex: entrate dell'anno incluse nei totali. */
+export function yearTable(movs, y, inc13 = true, incex = true, today = todayIso()) {
+  const [ty, tm] = ym(today);
+  const months = [];
+  const prog = [0, 0, 0];
+  const tot = { st: 0, sp: 0, r1: 0, iv: 0, r2: 0, ex: 0, r3: 0 };
+  for (let i = 0; i < 12; i++) {
+    const x = monthTotals(movs, y, i + 1);
+    const pt = x.per_tipo, r = rimanenti(x);
+    const v = { st: pt[T.STIPENDIO] || 0, sp: x.uscite, r1: r.solo_stipendio, iv: pt[T.INVESTIMENTO] || 0,
+      r2: r.senza_extra, ex: pt[T.ENTRATA] || 0, r3: r.totale };
+    const has = x.n > 0;
+    const past = y < ty || (y === ty && i + 1 <= tm);
+    if (has) { prog[0] += v.r1; prog[1] += v.r2; prog[2] += v.r3; }
+    Object.assign(v, { p1: prog[0], p2: prog[1], p3: prog[2], has, past, mese: i + 1 });
+    for (const k in tot) tot[k] += v[k];
+    months.push(v);
+  }
+  const an = annual(movs, y);
+  const aSt = inc13 ? an.stipendio : 0, aEx = incex ? an.extra : 0;
+  const ann = { st: aSt, sp: 0, r1: aSt, p1: prog[0] + aSt, iv: 0, r2: aSt, p2: prog[1] + aSt, ex: aEx,
+    r3: aSt + aEx, p3: prog[2] + aSt + aEx, has: !!(aSt || aEx) };
+  for (const k of ["st", "r1", "r2", "ex", "r3"]) tot[k] += ann[k];
+  return { months, annual: ann, totale: tot, an };
+}
