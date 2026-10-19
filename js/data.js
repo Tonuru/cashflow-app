@@ -14,7 +14,7 @@ const K_SEEN = "cf.seenErrors";
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k) || "null") ?? d; } catch { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* spazio pieno */ } }
 
-export const settings = Object.assign({ url: "", token: "", device: "iPhone" }, load(K_SETTINGS, {}));
+export const settings = Object.assign({ url: "", token: "", device: "" }, load(K_SETTINGS, {}));
 export function saveSettings(patch = {}) { Object.assign(settings, patch); save(K_SETTINGS, settings); }
 export const isLinked = () => !!(settings.url && settings.token);
 

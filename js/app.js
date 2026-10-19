@@ -7,7 +7,7 @@ import * as Comuni from "./views/comuni.js";
 import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -123,6 +123,8 @@ function start() {
 
 async function boot() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  // chiede al telefono di non cancellare mai i dati dell'app (codice, nome, voci non ancora inviate)
+  try { navigator.storage?.persist?.(); } catch { /* */ }
   D.onChange((what) => (what === "status" ? drawHeader() : render()));
   if (!D.isLinked()) { restartSetup(); return; }
   start();

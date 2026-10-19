@@ -5,7 +5,7 @@ import { h, toast, busy, confirmBox, fill, sheet } from "../ui.js";
 
 export function wizard(root, done) {
   const code = h("textarea.code", { rows: 4, placeholder: "CF1.…", autocapitalize: "off", autocorrect: "off", spellcheck: false });
-  const dev = h("input", { type: "text", value: D.settings.device || "iPhone di Michele" });
+  const dev = h("input", { type: "text", value: D.settings.device || "", placeholder: "es. IphoneMichele" });
   const err = h("div.form-err");
   const go = h("button.btn.primary.wide.big", {}, "Collega");
   go.onclick = () => busy(go, (async () => {
@@ -28,6 +28,7 @@ export function wizard(root, done) {
         + "(inizia con CF1.). Mandatelo sul telefono e incollalo qui."),
       h("label.field", {}, h("span", {}, "Codice di collegamento"), code),
       h("label.field", {}, h("span", {}, "Nome di questo telefono"), dev),
+      h("p.muted.small", {}, "Codice e nome si inseriscono una volta sola: poi li trovi e li cambi in Impostazioni."),
       err, go,
       h("details.help", {}, h("summary", {}, "Come funziona"),
         h("p", {}, "Il programma sul PC mette in un tuo Foglio Google una copia dei dati: il telefono la legge da solo. "
@@ -67,7 +68,8 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
       row("Avvisi", errs ? `${errs} modifiche non applicate` : "nessuno", h("button.btn.small-btn", { onclick: conflictsSheet }, "Vedi")),
       h("button.btn.wide", { onclick: () => D.sync() }, "Aggiorna adesso")),
     h("div.card", {}, h("div.card-title", {}, "Collegamento"),
-      row("Questo telefono", D.settings.device, null),
+      row("Nome di questo telefono", D.settings.device, h("button.btn.small-btn", { onclick: () => editName(rerender) }, "Cambia")),
+      row("Codice di collegamento", "salvato su questo telefono", h("button.btn.small-btn", { onclick: () => editCode(rerender) }, "Cambia")),
       row("Foglio Google", "collegato", h("button.btn.small-btn.danger", { onclick: async () => {
         const n = D.unsentCount();
         const msg = n ? `Ci sono ${n} voci non ancora inviate: andrebbero perse. Scollegare lo stesso?` : "Scollegare questo telefono?";
@@ -79,4 +81,37 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
         h("ol", {}, h("li", {}, "Apri questa pagina con Safari."), h("li", {}, "Tocca Condividi (il quadrato con la freccia)."),
           h("li", {}, "«Aggiungi alla schermata Home»."), h("li", {}, "Apri Cashflow dall'icona: si comporta come un'app.")))));
   void rerender;
+}
+
+function editName(rerender) {
+  const s = sheet("Nome di questo telefono");
+  const inp = h("input", { type: "text", value: D.settings.device || "" });
+  const b = h("button.btn.primary.wide", { onclick: () => {
+    D.saveSettings({ device: inp.value.trim() || "iPhone" });
+    toast("Nome salvato ✓", "ok");
+    s.close();
+    rerender();
+  } }, "Salva");
+  fill(s.body, h("label.field", {}, h("span", {}, "Nome (serve solo a riconoscere da dove arrivano le voci)"), inp), b);
+  setTimeout(() => inp.focus(), 300);
+}
+
+function editCode(rerender) {
+  const s = sheet("Codice di collegamento");
+  const code = h("textarea.code", { rows: 4, placeholder: "CF1.…", autocapitalize: "off", autocorrect: "off", spellcheck: false });
+  const err = h("div.form-err");
+  const b = h("button.btn.primary.wide", {}, "Salva");
+  b.onclick = () => busy(b, (async () => {
+    err.textContent = "";
+    let link;
+    try { link = D.decodeCode(code.value); await D.call({ azione: "stato" }, link); }
+    catch (e) { err.textContent = e.message; return; }
+    D.saveSettings(link);
+    await D.sync();
+    toast("Codice salvato ✓", "ok");
+    s.close();
+    rerender();
+  })(), "Controllo…");
+  fill(s.body, h("p.muted", {}, "Serve solo se hai ricollegato il foglio Google dal PC. Il codice si copia da "
+    + "Cashflow sul PC → Impostazioni → App per iPhone."), h("label.field", {}, h("span", {}, "Nuovo codice"), code), err, b);
 }
