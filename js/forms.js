@@ -11,7 +11,9 @@ const TIPI = [
 const tipiFor = () => (D.isMichele() ? TIPI : [TIPI[0], { tipo: M.T.ENTRATA, label: "Entrata" }]);
 
 function field(label, input, extra) {
-  return h("label.field", {}, h("span", {}, label), input, extra);
+  // dentro un <label> un tocco su un pulsante "rimbalza" sul primo pulsante: per i selettori a pulsanti si usa un <div>
+  const tag = input && input.classList && input.classList.contains("seg") ? "div.field" : "label.field";
+  return h(tag, {}, h("span", {}, label), input, extra);
 }
 function datalist(id, values) { return h("datalist", { id }, values.map((v) => h("option", { value: v }))); }
 function amountInput(v) {
@@ -150,7 +152,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const fDesc = h("input", { type: "text", list: "dl-cdesc", autocomplete: "off", value: row.descrizione || (rimborso ? "Rimborso" : "") });
   const fNote = h("input", { type: "text", value: row.note || "", placeholder: "facoltative" });
   const payer = segmented([{ value: pa, label: pa }, { value: pb, label: pb }],
-    row.pagato_da || (rimborso ? rimborso[0] : me === pb ? pb : pa), () => {});
+    row.pagato_da || (rimborso ? rimborso[0] : me === pb ? pb : pa), () => drawRimb());
   // divisione: "Predefinita" selezionata di base
   const qdef = Number(info.quota_a ?? 50);
   const divs = [
@@ -200,7 +202,6 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
       after ? h("div.small", {}, after) : null);
   };
   fImp.addEventListener("input", drawRimb);
-  payer.addEventListener("click", () => setTimeout(drawRimb));
   spesaOnly.style.display = tipo === M.T.SPESA ? "" : "none";
   if (tipo === M.T.RIMBORSO) payLbl.firstChild.textContent = "Chi dà i soldi";
   drawRimb();
