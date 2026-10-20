@@ -8,7 +8,7 @@ import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
 
-export const APP_VERSION = "1.2.2";
+export const APP_VERSION = "1.2.3";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -123,6 +123,8 @@ function start() {
 }
 
 async function boot() {
+  noZoom();
+  pullToRefresh();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   // chiede al telefono di non cancellare mai i dati dell'app (codice, nome, voci non ancora inviate)
   try { navigator.storage?.persist?.(); } catch { /* */ }
@@ -130,6 +132,52 @@ async function boot() {
   if (!D.isLinked()) { restartSetup(); return; }
   L.wireLock(() => { D.resetAll(); restartSetup(); });
   start();
+}
+
+// ---------------------------------------------------------------- niente zoom, «tira giù per aggiornare»
+function noZoom() {
+  // iOS ignora a volte user-scalable=no: si bloccano anche i gesti di pizzico e il doppio tocco
+  for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  }
+  document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+}
+
+/** Tirando giù la pagina quando è in cima: rilegge i dati dal foglio e controlla gli aggiornamenti
+ *  (come il pulsante ⟳). */
+function pullToRefresh() {
+  const ind = h("div.ptr", {}, h("span.ptr-icon", {}, "⟳"), h("span.ptr-text", {}, "Tira per aggiornare"));
+  document.body.append(ind);
+  const LIMIT = 80;
+  let y0 = null, dy = 0;
+  const blocked = () => document.querySelector(".sheet-wrap, .lock") || window.scrollY > 0;
+  window.addEventListener("touchstart", (e) => {
+    y0 = !blocked() && e.touches.length === 1 ? e.touches[0].clientY : null;
+    dy = 0;
+  }, { passive: true });
+  window.addEventListener("touchmove", (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || window.scrollY > 0) { ind.style.transform = ""; ind.classList.remove("show"); return; }
+    const d = Math.min(dy * 0.5, LIMIT + 20);
+    ind.classList.add("show");
+    ind.style.transform = `translate(-50%, ${d}px)`;
+    ind.querySelector(".ptr-icon").style.transform = `rotate(${d * 4}deg)`;
+    ind.querySelector(".ptr-text").textContent = dy * 0.5 >= LIMIT ? "Rilascia per aggiornare" : "Tira per aggiornare";
+  }, { passive: true });
+  window.addEventListener("touchend", async () => {
+    if (y0 == null) return;
+    const go = dy * 0.5 >= LIMIT;
+    y0 = null;
+    if (!go) { ind.classList.remove("show"); ind.style.transform = ""; return; }
+    ind.classList.add("busy");
+    ind.querySelector(".ptr-text").textContent = "Aggiorno…";
+    await Promise.all([D.sync(), checkUpdate()]);
+    const s = D.status;
+    ind.querySelector(".ptr-text").textContent = s.error ? (s.offline ? "Nessuna connessione" : "Foglio non raggiungibile")
+      : "Dati aggiornati ✓";
+    setTimeout(() => { ind.classList.remove("show", "busy"); ind.style.transform = ""; }, 900);
+  });
 }
 
 let wired = false;
