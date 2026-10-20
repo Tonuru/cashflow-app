@@ -60,46 +60,64 @@ export function showLock(onReset) {
   if (locked) return;
   locked = true;
   const msg = h("div.lock-msg");
-  const btn = h("button.btn.primary.big", {}, "Sblocca con Face ID");
-  const wrap = h("div.lock", {}, h("div.lock-box", {}, h("div.logo", {}, h("img", { src: "icons/logo.png", alt: "" })), h("h2", {}, "Cashflow"),
-    h("p.muted", {}, "Bloccato con Face ID · tocca per sbloccare"), btn, msg,
-    h("button.btn.linkish", { onclick: async () => {
-      if (confirm("Senza Face ID puoi solo ricollegare il telefono da capo (serve il codice dal PC). Le voci non ancora inviate andrebbero perse. Continuare?")) {
-        disable();
-        onReset?.();
-        wrap.remove();
-        locked = false;
-      }
-    } }, "Non riesco a sbloccare")));
+  const now = new Date();
+  const ora = now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const giorno = now.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+  const ring = h("div.lock-ring", {}, faceIcon());
+  const reset = h("button.lock-reset", { type: "button", onclick: async (e) => {
+    e.stopPropagation();
+    if (confirm("Senza Face ID puoi solo ricollegare il telefono da capo (serve il codice dal PC). Le voci non ancora inviate andrebbero perse. Continuare?")) {
+      disable();
+      onReset?.();
+      wrap.remove();
+      document.documentElement.classList.remove("is-locked");
+      locked = false;
+    }
+  } }, "Non riesci a entrare?");
+  const wrap = h("div.lock", { role: "button", "aria-label": "Premi per accedere con Face ID" },
+    h("div.lock-glow.g1"), h("div.lock-glow.g2"),
+    h("div.lock-top", {}, h("div.lock-time", {}, ora), h("div.lock-date", {}, giorno)),
+    h("div.lock-box", {},
+      h("div.lock-brand", {}, h("img", { src: "icons/logo.png", alt: "" }), h("span", {}, "Cashflow")),
+      ring,
+      h("div.lock-cta", {}, "Premi per accedere"),
+      h("div.lock-hint", {}, "Tocca un punto qualsiasi dello schermo"),
+      msg),
+    reset);
   document.body.append(wrap);
   document.documentElement.classList.add("is-locked");
   let busy = false;
   const unlock = () => {
-    wrap.remove();
+    wrap.classList.add("out");
     document.documentElement.classList.remove("is-locked");
     locked = false;
-    for (const [ev, fn] of listeners) window.removeEventListener(ev, fn);
+    setTimeout(() => wrap.remove(), 350);
   };
-  const tryIt = async (auto = false) => {
+  // Face ID parte al tocco: così iOS non mostra il riquadro «Usa la passkey»
+  const tryIt = async () => {
     if (busy || !locked) return;
     busy = true;
-    if (!auto) fill(msg);
-    btn.disabled = true;
+    fill(msg);
+    wrap.classList.add("busy");
     try {
-      if (await verify()) unlock();
+      if (await verify()) { ring.classList.add("ok"); unlock(); }
     } catch (e) {
-      // il tentativo automatico può essere rifiutato da iOS: niente messaggio, basta un tocco ovunque
-      if (!auto) fill(msg, e.name === "NotAllowedError" ? "Annullato: tocca per riprovare." : e.message);
-    } finally { busy = false; btn.disabled = false; }
+      fill(msg, e.name === "NotAllowedError" ? "Annullato · tocca per riprovare" : e.message);
+    } finally { busy = false; wrap.classList.remove("busy"); }
   };
-  btn.onclick = (e) => { e.stopPropagation(); tryIt(false); };
-  // un tocco in qualsiasi punto della schermata fa partire Face ID
-  wrap.addEventListener("click", (e) => { if (!e.target.closest(".linkish")) tryIt(false); });
-  // Face ID parte da solo appena l'app è aperta e in primo piano (subito, e di nuovo quando prende il focus)
-  const listeners = [["focus", () => tryIt(true)], ["pageshow", () => tryIt(true)]];
-  for (const [ev, fn] of listeners) window.addEventListener(ev, fn);
-  tryIt(true);
-  setTimeout(() => tryIt(true), 700);
+  wrap.addEventListener("click", () => tryIt());
+}
+
+/** Icona Face ID disegnata (angoli, occhi, naso, sorriso). */
+function faceIcon() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 64 64");
+  svg.setAttribute("class", "lock-face");
+  svg.innerHTML = `<g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 20V12a6 6 0 0 1 6-6h8M44 6h8a6 6 0 0 1 6 6v8M58 44v8a6 6 0 0 1-6 6h-8M20 58h-8a6 6 0 0 1-6-6v-8"/>
+    <path d="M22 24v5M42 24v5M32 24v13a3 3 0 0 1-3 3h-1"/><path d="M23 45c5 4 13 4 18 0"/></g>`;
+  return svg;
 }
 
 /** Blocca all'avvio e quando l'app torna in primo piano dopo il tempo scelto. */
