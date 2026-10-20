@@ -93,21 +93,27 @@ export function showLock(onReset) {
     wrap.classList.add("out");
     document.documentElement.classList.remove("is-locked");
     locked = false;
+    for (const [ev, fn] of listeners) window.removeEventListener(ev, fn);
     setTimeout(() => wrap.remove(), 350);
   };
-  // Face ID parte al tocco: così iOS non mostra il riquadro «Usa la passkey»
-  const tryIt = async () => {
+  // Face ID parte da solo all'apertura (iOS mostra prima il suo riquadro «Usa la passkey»);
+  // se viene annullato, basta toccare un punto qualsiasi della schermata
+  const tryIt = async (auto = false) => {
     if (busy || !locked) return;
     busy = true;
-    fill(msg);
+    if (!auto) fill(msg);
     wrap.classList.add("busy");
     try {
       if (await verify()) { ring.classList.add("ok"); unlock(); }
     } catch (e) {
-      fill(msg, e.name === "NotAllowedError" ? "Annullato · tocca per riprovare" : e.message);
+      if (!auto || e.name === "NotAllowedError") fill(msg, e.name === "NotAllowedError" ? "Annullato · tocca per riprovare" : e.message);
     } finally { busy = false; wrap.classList.remove("busy"); }
   };
   wrap.addEventListener("click", () => tryIt());
+  const listeners = [["focus", () => tryIt(true)], ["pageshow", () => tryIt(true)]];
+  for (const [ev, fn] of listeners) window.addEventListener(ev, fn);
+  tryIt(true);
+  setTimeout(() => tryIt(true), 700);
 }
 
 /** Icona Face ID disegnata (angoli, occhi, naso, sorriso). */

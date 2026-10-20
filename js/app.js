@@ -8,7 +8,7 @@ import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
 
-export const APP_VERSION = "1.3.2";
+export const APP_VERSION = "1.3.3";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
