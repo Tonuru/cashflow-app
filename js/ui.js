@@ -173,3 +173,25 @@ export function fill(el, ...kids) {
   el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false)
     .map((k) => (k instanceof Node ? k : document.createTextNode(String(k)))));
 }
+
+// ---------------------------------------------------------------- riquadri apribili
+// Ogni riquadro con un titolo si apre e chiude toccando il titolo. All'apertura dell'app sono tutti chiusi
+// (lo stato resta solo finché l'app è aperta); i numeri principali (data-keep) restano sempre visibili.
+const foldOpen = new Set();
+export function foldCards(root, page) {
+  for (const card of root.querySelectorAll(":scope > .card")) {
+    if (card.dataset.keep != null) continue;
+    const title = card.firstElementChild;
+    if (!title || !title.classList.contains("card-title")) continue;
+    const name = card.dataset.fold || (title.firstElementChild ? title.firstElementChild.textContent : title.textContent);
+    const key = `${page}:${name}`;
+    card.classList.add("fold");
+    card.classList.toggle("folded", !foldOpen.has(key));
+    title.setAttribute("role", "button");
+    title.addEventListener("click", (e) => {
+      if (e.target.closest("button, a, input, select") && !card.classList.contains("folded")) return;
+      const open = card.classList.toggle("folded") === false;
+      if (open) foldOpen.add(key); else foldOpen.delete(key);
+    });
+  }
+}

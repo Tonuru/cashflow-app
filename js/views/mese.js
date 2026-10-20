@@ -46,7 +46,7 @@ export function render(root, rerender) {
 
   const stat = (title, v, color, onclick) => h("button.stat", { onclick },
     h("div.stat-t", {}, title), h("div.stat-v", { style: { color } }, M.fmtEur(v)));
-  const entrate = h("div.card", {}, h("div.card-title", {}, "Entrate del mese"),
+  const entrate = h("div.card", { "data-keep": "" }, h("div.card-title", {}, "Entrate del mese"),
     h("div.stats" + (mich ? "" : ".two"), {},
       mich ? stat("Stipendio", st, C.green, () => jump("sec-stip", rerender)) : null,
       stat(mich ? "Extra" : "Entrate", ex, C.green, () => jump("sec-extra", rerender)),
@@ -74,7 +74,7 @@ export function render(root, rerender) {
   const section = (id, title, tipo, rows, color, { readonly = false, sign = "+" } = {}) => {
     const tot = rows.reduce((a, x) => a + Number(x.importo || 0), 0);
     const key = id;
-    const open = view.open[key] ?? (tipo === M.T.USCITA);
+    const open = view.open[key] ?? false;
     const body = open ? h("div.list", {}, rows.length ? rows.map((x) => movRow(x, { sign,
       onTap: readonly ? null : (z) => openMov(z, rerender) })) : h("div.empty", {}, "Nessuna voce.")) : null;
     return h("div.card", { id }, h("div.sec-head", {},

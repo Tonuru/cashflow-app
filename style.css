@@ -197,3 +197,14 @@ html { touch-action: manipulation; }       /* niente zoom col doppio tocco */
   gap: 8px; align-items: center; opacity: 0; transition: opacity .15s; box-shadow: 0 6px 20px rgba(0,0,0,.4); pointer-events: none; }
 .ptr.show { opacity: 1; } .ptr-icon { display: inline-block; font-size: 18px; }
 .ptr.busy .ptr-icon { animation: spin 1s linear infinite; }
+
+/* riquadri apribili: tocca il titolo */
+.card.fold > .card-title { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.card.fold > .card-title:not(.row)::before, .card.fold > .card-title.row > :first-child::before {
+  content: "▾"; display: inline-block; width: 1.1em; color: var(--muted); font-size: 13px; }
+.card.fold.folded > .card-title:not(.row)::before, .card.fold.folded > .card-title.row > :first-child::before { content: "▸"; }
+.card.fold.folded > .card-title { margin-bottom: 0; }
+.card.fold.folded > :not(.card-title) { display: none !important; }
+.card.fold.folded > .card-title button { display: none; }
+.help-text p { margin: 0 0 10px; line-height: 1.45; }
+.help-text b { display: block; margin-top: 6px; }

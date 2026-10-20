@@ -1,6 +1,6 @@
 // Avvio dell'app e navigazione tra le schede.
 import * as D from "./data.js";
-import { h, toast, fill } from "./ui.js";
+import { h, toast, fill, foldCards } from "./ui.js";
 import * as Mese from "./views/mese.js";
 import * as Anno from "./views/anno.js";
 import * as Comuni from "./views/comuni.js";
@@ -8,7 +8,7 @@ import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
 
-export const APP_VERSION = "1.2.5";
+export const APP_VERSION = "1.3.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -71,6 +71,7 @@ function render() {
   else if (tab === "anno") Anno.render(main, rerender, goMonth);
   else if (tab === "comuni") Comuni.render(main, rerender);
   else settingsView(main, rerender, { version: APP_VERSION, checkUpdate, restartSetup });
+  foldCards(main, tab);
   window.scrollTo(0, y0);
 }
 

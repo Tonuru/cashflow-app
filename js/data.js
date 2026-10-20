@@ -163,9 +163,21 @@ export function meInComune() {
   const i = comuneInfo(), k = myKey(), u = profile().utente;
   return !i ? u : k === "quota_a" ? i.persona_a : k === "quota_b" ? i.persona_b : u;
 }
+let _comRowsKey = "", _comRows = [];
+/** Le spese comuni che entrano nelle mie spese (tutti gli anni insieme: un debito può essere ripagato l'anno dopo). */
+function comuneRowsAll() {
+  const info = comuneInfo();
+  if (!info || !myKey()) return [];
+  const all = years("comune").flatMap((y) => comuneMovs(y));
+  const key = JSON.stringify([cache.copia?.generata, pendingOps().length, all.length, profile().utente]);
+  if (key !== _comRowsKey) {
+    _comRowsKey = key;
+    _comRows = M.comunePersonalRows(all, meInComune(), info.persona_a, info.persona_b);
+  }
+  return _comRows;
+}
 export function allMovs(y) {
-  const own = personalMovs(y);
-  return isMichele() ? own.concat(M.comuneQuotaRows(comuneMovs(y), myKey())) : own;
+  return personalMovs(y).concat(comuneRowsAll().filter((m) => Number(m.data.slice(0, 4)) === y));
 }
 export function allMovsEveryYear() {
   const ys = new Set([...years("personal"), ...years("comune")]);

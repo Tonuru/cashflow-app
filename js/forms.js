@@ -164,7 +164,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   ];
   let div = "def";
   const fQa = h("input", { type: "number", inputmode: "decimal", min: 0, max: 100, step: "any", value: qdef });
-  if (editing && row.tipo === M.T.SPESA) {
+  if (editing && row.tipo !== M.T.RIMBORSO && row.tipo !== M.T_PRESTITO) {
     const qa = Number(row.quota_a ?? qdef);
     div = qa === qdef ? "def" : qa === 50 ? "50" : qa === 100 ? "a" : qa === 0 ? "b" : "x";
     fQa.value = qa;
@@ -175,21 +175,31 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const syncDiv = () => { custom.style.display = divSel.value === "x" ? "" : "none"; };
   divSel.addEventListener("change", syncDiv);
   syncDiv();
-  const spesaOnly = h("div", {}, field("Categoria", fCat), field("Divisione", divSel), custom);
-  const tipoSeg = segmented([{ value: M.T.SPESA, label: "Spesa" }, { value: M.T.RIMBORSO, label: "Rimborso" }], tipo, (v) => {
-    tipo = v;
-    spesaOnly.style.display = v === M.T.SPESA ? "" : "none";
-    payLbl.firstChild.textContent = v === M.T.RIMBORSO ? "Chi dà i soldi" : "Pagato da";
-    drawRimb();
-  });
+  const catField = field("Categoria", fCat);
+  const divField = h("div", {}, field("Divisione", divSel), custom);
+  const spesaOnly = h("div", {}, catField, divField);
   const payLbl = field("Pagato da", payer);
+  // Spesa / Prestito / Rimborso: cambiano le etichette e cosa serve compilare
+  const applyTipo = () => {
+    spesaOnly.style.display = tipo === M.T.RIMBORSO ? "none" : "";
+    divField.style.display = tipo === M.T.SPESA ? "" : "none";
+    catField.firstChild.textContent = tipo === M.T_PRESTITO ? "Per cosa (categoria)" : "Categoria";
+    payLbl.firstChild.textContent = tipo === M.T.RIMBORSO ? "Chi dà i soldi" : tipo === M.T_PRESTITO ? "Chi presta" : "Pagato da";
+  };
+  const tipoSeg = segmented([{ value: M.T.SPESA, label: "Spesa" }, { value: M.T_PRESTITO, label: "Prestito" },
+    { value: M.T.RIMBORSO, label: "Rimborso" }], tipo, (v) => { tipo = v; applyTipo(); drawRimb(); });
   // rimborso: frase chiara su chi dà i soldi a chi e come restano i conti
   const rimbInfo = h("div.rimb-info");
   const saldo = M.comuneSaldo(D.comuneMovs(year), pa, pb);
   const drawRimb = () => {
-    if (tipo !== M.T.RIMBORSO) { fill(rimbInfo); return; }
     const who = payer.get(), to = who === pa ? pb : pa;
     const imp = M.parseAmount(fImp.value) || 0;
+    if (tipo === M.T_PRESTITO) {
+      fill(rimbInfo, h("div", {}, h("b", {}, who), " presta ", h("b", {}, M.fmtEur(imp)), " a ", h("b", {}, to)),
+        h("div.small", {}, `A ${who} non conta come spesa. ${to} la vedrà nelle sue spese quando glieli restituisce.`));
+      return;
+    }
+    if (tipo !== M.T.RIMBORSO) { fill(rimbInfo); return; }
     let after = "";
     if (saldo.debitore === who) {
       const rest = M.pyRound2(saldo.importo - imp);
@@ -202,8 +212,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
       after ? h("div.small", {}, after) : null);
   };
   fImp.addEventListener("input", drawRimb);
-  spesaOnly.style.display = tipo === M.T.SPESA ? "" : "none";
-  if (tipo === M.T.RIMBORSO) payLbl.firstChild.textContent = "Chi dà i soldi";
+  applyTipo();
   drawRimb();
   const err = errBox();
 
@@ -211,7 +220,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
     const imp = M.parseAmount(fImp.value);
     if (!fData.value) return "Scegli la data.";
     if (imp == null || imp <= 0) return "Scrivi l'importo (es. 12,50).";
-    const out = { data: fData.value, tipo, importo: imp, categoria: tipo === M.T.SPESA ? fCat.value : "",
+    const out = { data: fData.value, tipo, importo: imp, categoria: tipo === M.T.RIMBORSO ? "" : fCat.value,
       descrizione: fDesc.value.trim(), pagato_da: payer.get(), note: fNote.value.trim() };
     if (tipo === M.T.SPESA) {
       const d = divs.find((x) => x.value === divSel.value);
@@ -219,6 +228,11 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
       if (!(qa >= 0 && qa <= 100)) return "La quota deve essere tra 0 e 100.";
       out.quota_a = qa;
       out.quota_b = M.pyRound2(100 - qa);
+    } else if (tipo === M.T_PRESTITO) {
+      // il prestito è tutto di chi lo riceve
+      const toA = payer.get() !== pa;
+      out.quota_a = toA ? 100 : 0;
+      out.quota_b = toA ? 0 : 100;
     } else { out.quota_a = ""; out.quota_b = ""; }
     return out;
   };

@@ -235,6 +235,7 @@ export function colors(categorie) {
   const out = {};
   for (const c of categorie) out[c.categoria] = c.colore || "#9AA3AE";
   if (!(CAT_SPESE_COMUNI in out)) out[CAT_SPESE_COMUNI] = "#C77DFF";
+  if (!(CAT_PRESTITI in out)) out[CAT_PRESTITI] = "#E8A0FF";
   return out;
 }
 
@@ -276,18 +277,64 @@ export function myQuotaKey(comuneInfo, utente) {
 }
 
 /** La mia quota di ogni spesa comune come spesa personale "virtuale" (come state.comune_quota_rows). */
-export function comuneQuotaRows(comuneMovs, key) {
-  if (!key) return [];
+export const T_PRESTITO = "Prestito";
+export const CAT_PRESTITI = "Prestiti restituiti";
+
+/** Spese comuni (e prestiti) nelle spese del mese di `me` — stessa logica di calc.comune_personal_rows:
+ *  chi paga la spesa vede subito la sua quota; l'altro la vede quando l'ha ripagata (rimborso o compensazione);
+ *  il prestito conta solo per chi lo riceve, quando lo restituisce; i debiti si coprono dal più vecchio. */
+export function comunePersonalRows(movs, me, pa, pb) {
+  if (me !== pa && me !== pb) return [];
+  const other = { [pa]: pb, [pb]: pa };
+  const debts = { [pa]: [], [pb]: [] };
   const out = [];
-  for (const m of comuneMovs) {
-    if (m.tipo !== T.SPESA || !m.data) continue;
-    const q = Number(m[key] || 0), imp = Number(m.importo || 0);
-    const v = pyRound2((imp * q) / 100);
-    if (!v) continue;
-    const note = `quota ${q.toFixed(0)}% di ${imp.toFixed(2)} €`.replace(/\./g, ",")
-      + (m.pagato_da ? ` · pagato da ${m.pagato_da}` : "");
-    out.push({ id: `com:${m.id}`, data: m.data, tipo: T.USCITA, importo: v, categoria: CAT_SPESE_COMUNI,
-      sottocategoria: m.categoria || "", descrizione: m.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE });
+  const eur = (v) => `${v.toFixed(2)} €`.replace(".", ",");
+  const emit = (person, it, when) => {
+    if (person !== me || it.neutral) return;
+    const src = it.src;
+    const prest = src.tipo === T_PRESTITO;
+    const imp = Number(src.importo || 0);
+    let note;
+    if (prest) note = `prestito di ${eur(imp)} da ${src.pagato_da}, restituito`;
+    else {
+      const q = Number(src[me === pa ? "quota_a" : "quota_b"] || 0);
+      note = `quota ${q.toFixed(0)}% di ${eur(imp)} · pagato da ${src.pagato_da || "?"}`;
+      if (when !== src.data) note += ` il ${fmtDate(src.data)}, ripagata`;
+    }
+    out.push({ id: `com:${src.id}`, data: when, tipo: T.USCITA, importo: pyRound2(it.amount),
+      categoria: prest ? CAT_PRESTITI : CAT_SPESE_COMUNI, sottocategoria: src.categoria || "",
+      descrizione: src.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE });
+  };
+  const pay = (person, amount, when) => {
+    for (const it of debts[person]) {
+      if (amount <= 0.004) break;
+      if (it.rest <= 0.004) continue;
+      const c = Math.min(it.rest, amount);
+      it.rest -= c;
+      amount -= c;
+      if (it.rest <= 0.004) emit(person, it, when);
+    }
+    debts[person] = debts[person].filter((it) => it.rest > 0.004);
+    if (amount > 0.004) debts[other[person]].push({ src: {}, amount, rest: amount, neutral: true });
+  };
+  const open = (p) => debts[p].reduce((a, it) => a + it.rest, 0);
+  const evs = movs.filter((m) => m.data && Number(m.importo || 0) > 0)
+    .sort((a, b) => (a.data + (a.inserito || "") + String(a.id || "")).localeCompare(b.data + (b.inserito || "") + String(b.id || "")));
+  for (const m of evs) {
+    const imp = Number(m.importo || 0), payer = m.pagato_da;
+    if (payer !== pa && payer !== pb) continue;
+    if (m.tipo === T.RIMBORSO) pay(payer, imp, m.data);
+    else if (m.tipo === T_PRESTITO) debts[other[payer]].push({ src: m, amount: imp, rest: imp });
+    else {
+      for (const [person, key] of [[pa, "quota_a"], [pb, "quota_b"]]) {
+        const q = pyRound2((imp * Number(m[key] || 0)) / 100);
+        if (q <= 0) continue;
+        const it = { src: m, amount: q, rest: q };
+        if (person === payer) emit(person, it, m.data); else debts[person].push(it);
+      }
+    }
+    const o = Math.min(open(pa), open(pb));
+    if (o > 0.004) { pay(pa, o, m.data); pay(pb, o, m.data); }
   }
   return out;
 }
