@@ -183,6 +183,23 @@ export function allMovsEveryYear() {
   const ys = new Set([...years("personal"), ...years("comune")]);
   return [...ys].flatMap((y) => allMovs(y));
 }
+/** Indici di tasse e contributi dell'anno (Tania); se l'anno non li ha, quelli dell'anno più vicino prima. */
+export function indici(y) {
+  const ys = yearsOf("personal");
+  const order = [y, ...ys.filter((x) => x < y).reverse(), ...ys.filter((x) => x > y)];
+  for (const x of order) {
+    const ind = fileData("personal", x)?.info?.indici;
+    if (ind && Object.keys(ind).length) return { ...M.INDICI_DEFAULT, ...ind };
+  }
+  return { ...M.INDICI_DEFAULT };
+}
+/** Tania ha tolto per sempre l'Educativa (Impostazioni sul PC). */
+export const eduRemoved = () => !!cache.copia?.educativa_tolta;
+/** Tutti i movimenti (tutti gli anni): servono al mese di gennaio, che usa il netto di dicembre. */
+export function taniaMonth(y, m) {
+  const movs = m === 1 ? allMovs(y - 1).concat(allMovs(y)) : allMovs(y);
+  return M.taniaMonth(movs, y, m, indici);
+}
 const latest = (kind, y) => fileData(kind, y) || fileData(kind, yearsOf(kind).slice(-1)[0]);
 export const categorie = (y) => latest("personal", y)?.categorie || [];
 export const metodi = (y) => latest("personal", y)?.metodi || M.DEFAULT_METODI;

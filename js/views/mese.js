@@ -3,6 +3,7 @@ import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, donut, dots, fill } from "../ui.js";
 import { movimentoSheet, vociSheet, movRow, comuneSheet } from "../forms.js";
+import * as Tania from "./tania.js";
 
 export const MODI = [
   ["Stipendio", "Rimane", "stipendio − spese"],
@@ -14,6 +15,7 @@ try { view.mode = Number(localStorage.getItem("cf.mode") || 0) % 3; } catch { /*
 export function setMode(i) { view.mode = (i + 3) % 3; try { localStorage.setItem("cf.mode", view.mode); } catch { /* */ } }
 
 export function render(root, rerender) {
+  if (!D.isMichele()) { Tania.renderMese(root, rerender, view); return; }
   const { y, m } = view;
   const mich = D.isMichele();
   const mode = mich ? view.mode : 2;

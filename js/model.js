@@ -398,3 +398,77 @@ export function yearTable(movs, y, inc13 = true, incex = true, today = todayIso(
   for (const k of ["st", "r1", "r2", "ex", "r3"]) tot[k] += ann[k];
   return { months, annual: ann, totale: tot, an };
 }
+
+// ---------------------------------------------------------------- versione Tania (libera professione)
+// Stessi calcoli di cashflow/core/calc.py (professione, stipendio_professione, tania_month, pazienti).
+export const CAT_PROFESSIONE = "Libera professione";
+export const CAT_SPESE_PROF = "Spese professionali";
+export const CAT_EDUCATIVA = "Educativa";
+export const INDICI = [
+  ["coef", "Coefficiente di redditività", 0.78],
+  ["sogg", "Contributo soggettivo ENPAP", 0.10],
+  ["integr", "Contributo integrativo ENPAP", 0.02],
+  ["aliq", "Aliquota imposta", 0.05],
+];
+export const INDICI_DEFAULT = Object.fromEntries(INDICI.map(([k, , v]) => [k, v]));
+export const isProfIncome = (m) => (m.tipo || T.USCITA) === T.ENTRATA && m.categoria === CAT_PROFESSIONE;
+export const isProfCost = (m) => (m.tipo || T.USCITA) === T.USCITA && m.categoria === CAT_SPESE_PROF;
+const prevMonth = (y, m) => (m === 1 ? [y - 1, 12] : [y, m - 1]);
+
+export function professione(movs, y, mo, indici) {
+  const ind = { ...INDICI_DEFAULT, ...(indici || {}) };
+  let inc = 0, spese = 0, sedute = 0;
+  for (const m of movs) {
+    if (!inMonth(m.data, y, mo) || isAnnual(m)) continue;
+    if (isProfIncome(m)) { inc += Number(m.importo || 0); sedute += 1; }
+    else if (isProfCost(m)) spese += Number(m.importo || 0);
+  }
+  const sogg = inc * ind.coef * ind.sogg, integr = inc * ind.integr, imposta = inc * ind.coef * ind.aliq;
+  const tasse = sogg + integr + imposta;
+  return { incasso: pyRound2(inc), sedute, soggettivo: pyRound2(sogg), integrativo: pyRound2(integr),
+    imposta: pyRound2(imposta), tasse: pyRound2(tasse), netto_tasse: pyRound2(inc - tasse),
+    spese_prof: pyRound2(spese), netto: pyRound2(inc - tasse - spese) };
+}
+
+export function stipendioProfessione(movs, y, mo, indiciFor) {
+  const [py, pm] = prevMonth(y, mo);
+  return Math.max(0, professione(movs, py, pm, indiciFor(py)).netto);
+}
+
+export function taniaMonth(movs, y, mo, indiciFor) {
+  const prof = professione(movs, y, mo, indiciFor(y));
+  let edu = 0, altri = 0, spese = 0;
+  const speseCat = {};
+  for (const m of movs) {
+    if (!inMonth(m.data, y, mo) || isAnnual(m)) continue;
+    const tipo = m.tipo || T.USCITA, v = Number(m.importo || 0);
+    if (tipo === T.STIPENDIO) edu += v;
+    else if (tipo === T.ENTRATA && !isProfIncome(m)) altri += v;
+    else if (tipo === T.USCITA && !isProfCost(m)) {
+      spese += v;
+      const c = m.categoria || "Senza categoria";
+      speseCat[c] = (speseCat[c] || 0) + v;
+    }
+  }
+  const stip = stipendioProfessione(movs, y, mo, indiciFor);
+  const tot = edu + stip + altri;
+  return { prof, educativa: pyRound2(edu), stip_prof: pyRound2(stip), altri: pyRound2(altri), entrate: pyRound2(tot),
+    spese: pyRound2(spese), rimane: pyRound2(tot - spese), spese_cat: speseCat };
+}
+
+export const personalSpese = (movs) => movs.filter((m) => !isProfCost(m));
+
+/** Sedute del mese per paziente: [[paziente, sedute, totale]], in ordine alfabetico. */
+export function pazienti(movs, y, mo) {
+  const by = new Map();
+  for (const m of movs) {
+    if (!isProfIncome(m) || !inMonth(m.data, y, mo) || isAnnual(m)) continue;
+    const p = m.sottocategoria || "Senza nome";
+    if (!by.has(p)) by.set(p, []);
+    by.get(p).push(m);
+  }
+  return [...by.entries()].map(([p, rows]) => {
+    rows.sort((a, b) => (a.data + (a.inserito || "")).localeCompare(b.data + (b.inserito || "")));
+    return [p, rows, pyRound2(rows.reduce((a, r) => a + Number(r.importo || 0), 0))];
+  }).sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
+}

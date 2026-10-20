@@ -4,6 +4,7 @@ import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, donut, bars, dots, sheet, toast, busy, fill } from "../ui.js";
 import { vociSheet } from "../forms.js";
 import { MODI, setMode, view as meseView, openMov } from "./mese.js";
+import * as Tania from "./tania.js";
 
 export const view = { y: new Date().getFullYear(), inc13: true, incex: true, netM: false, netY: false };
 
@@ -22,6 +23,7 @@ const COLS = [
 ];
 
 export function render(root, rerender, goMonth) {
+  if (!D.isMichele()) { Tania.renderAnno(root, rerender, view, goMonth); return; }
   const y = view.y;
   const mich = D.isMichele();
   const mode = mich ? meseView.mode : 2;

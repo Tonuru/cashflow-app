@@ -8,7 +8,8 @@ const TIPI = [
   { tipo: M.T.STIPENDIO, label: "Stipendio" },
   { tipo: M.T.ENTRATA, label: "Entrata extra" },
 ];
-const tipiFor = () => (D.isMichele() ? TIPI : [TIPI[0], { tipo: M.T.ENTRATA, label: "Entrata" }]);
+const tipiFor = () => (D.isMichele() ? TIPI : [TIPI[0], { tipo: M.T.ENTRATA, label: "Entrata" },
+  ...(D.eduRemoved() ? [] : [{ tipo: M.T.STIPENDIO, label: "Educativa" }])]);
 
 function field(label, input, extra) {
   // dentro un <label> un tocco su un pulsante "rimbalza" sul primo pulsante: per i selettori a pulsanti si usa un <div>

@@ -236,3 +236,16 @@ html { touch-action: manipulation; }       /* niente zoom col doppio tocco */
 .card.fold.folded > .card-title button { display: none; }
 .help-text p { margin: 0 0 10px; line-height: 1.45; }
 .help-text b { display: block; margin-top: 6px; }
+
+/* versione Tania */
+.group-title { margin: 22px 4px 2px; font-weight: 800; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.big-green { color: var(--green); font-weight: 700; font-size: 14px; }
+.conti { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.conto { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; }
+.conto.tot { background: rgba(255,255,255,.05); font-weight: 700; }
+.conto-n { font-size: 15px; } .conto-s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.conto-v { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 15px; }
+.paz-tot { display: flex; justify-content: space-between; padding: 10px 4px 12px; border-top: 1px solid var(--border); margin-top: 4px; font-size: 14px; }
+.card .btn.wide + .muted { margin-top: 8px; }
+.done-row { color: var(--green); font-size: 14px; padding: 4px 2px; }
+.center > .chip { margin: 4px auto 8px; }
