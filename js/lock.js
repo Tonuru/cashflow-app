@@ -38,7 +38,9 @@ export async function verify() {
   if (!s.id) return true;
   const r = await navigator.credentials.get({ publicKey: {
     challenge: rnd(32), rpId: location.hostname, userVerification: "required", timeout: 60000,
-    allowCredentials: [{ type: "public-key", id: unb64(s.id), transports: ["internal", "hybrid"] }],
+    // solo «internal»: la passkey è su questo iPhone. Con «hybrid» iOS apre il riquadro di scelta
+    // («Usa la passkey» / altro dispositivo) invece di andare dritto a Face ID
+    allowCredentials: [{ type: "public-key", id: unb64(s.id), transports: ["internal"] }],
   } });
   return !!r;
 }
