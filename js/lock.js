@@ -62,7 +62,7 @@ export function showLock(onReset) {
   const msg = h("div.lock-msg");
   const btn = h("button.btn.primary.big", {}, "Sblocca con Face ID");
   const wrap = h("div.lock", {}, h("div.lock-box", {}, h("div.logo", {}, h("img", { src: "icons/logo.png", alt: "" })), h("h2", {}, "Cashflow"),
-    h("p.muted", {}, "Bloccato con Face ID"), btn, msg,
+    h("p.muted", {}, "Bloccato con Face ID · tocca per sbloccare"), btn, msg,
     h("button.btn.linkish", { onclick: async () => {
       if (confirm("Senza Face ID puoi solo ricollegare il telefono da capo (serve il codice dal PC). Le voci non ancora inviate andrebbero perse. Continuare?")) {
         disable();
@@ -73,23 +73,33 @@ export function showLock(onReset) {
     } }, "Non riesco a sbloccare")));
   document.body.append(wrap);
   document.documentElement.classList.add("is-locked");
-  const tryIt = async () => {
-    fill(msg);
+  let busy = false;
+  const unlock = () => {
+    wrap.remove();
+    document.documentElement.classList.remove("is-locked");
+    locked = false;
+    for (const [ev, fn] of listeners) window.removeEventListener(ev, fn);
+  };
+  const tryIt = async (auto = false) => {
+    if (busy || !locked) return;
+    busy = true;
+    if (!auto) fill(msg);
     btn.disabled = true;
     try {
-      if (await verify()) {
-        wrap.remove();
-        document.documentElement.classList.remove("is-locked");
-        locked = false;
-        return;
-      }
+      if (await verify()) unlock();
     } catch (e) {
-      fill(msg, e.name === "NotAllowedError" ? "Annullato: tocca il pulsante per riprovare." : e.message);
-    } finally { btn.disabled = false; }
+      // il tentativo automatico può essere rifiutato da iOS: niente messaggio, basta un tocco ovunque
+      if (!auto) fill(msg, e.name === "NotAllowedError" ? "Annullato: tocca per riprovare." : e.message);
+    } finally { busy = false; btn.disabled = false; }
   };
-  btn.onclick = tryIt;
-  // iOS vuole un tocco per Face ID: si prova subito, altrimenti resta il pulsante
-  setTimeout(tryIt, 300);
+  btn.onclick = (e) => { e.stopPropagation(); tryIt(false); };
+  // un tocco in qualsiasi punto della schermata fa partire Face ID
+  wrap.addEventListener("click", (e) => { if (!e.target.closest(".linkish")) tryIt(false); });
+  // Face ID parte da solo appena l'app è aperta e in primo piano (subito, e di nuovo quando prende il focus)
+  const listeners = [["focus", () => tryIt(true)], ["pageshow", () => tryIt(true)]];
+  for (const [ev, fn] of listeners) window.addEventListener(ev, fn);
+  tryIt(true);
+  setTimeout(() => tryIt(true), 700);
 }
 
 /** Blocca all'avvio e quando l'app torna in primo piano dopo il tempo scelto. */
