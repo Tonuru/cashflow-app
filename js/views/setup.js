@@ -15,7 +15,7 @@ export function wizard(root, done) {
     try { link = D.decodeCode(code.value); } catch (e) { err.textContent = e.message; return; }
     try {
       await D.call({ azione: "stato" }, link);
-    } catch (e) { err.textContent = e.message; return; }
+    } catch (e) { showErr(err, e, link); return; }
     D.saveSettings({ ...link, device: dev.value.trim() || "iPhone" });
     await D.sync();
     toast("Collegato ✓", "ok");
@@ -107,7 +107,7 @@ function editCode(rerender) {
     err.textContent = "";
     let link;
     try { link = D.decodeCode(code.value); await D.call({ azione: "stato" }, link); }
-    catch (e) { err.textContent = e.message; return; }
+    catch (e) { showErr(err, e, link); return; }
     D.saveSettings(link);
     await D.sync();
     toast("Codice salvato ✓", "ok");
@@ -152,4 +152,14 @@ function securityCard(rerender) {
     on ? h("label.field", {}, h("span", {}, "Quando torni nell'app, chiedi Face ID"), sel) : null,
     toggle, msg);
   return card;
+}
+
+/** Errore di collegamento: se il foglio non risponde, pulsante per aprire l'indirizzo dello script in Safari. */
+function showErr(box, e, link) {
+  fill(box, h("div", {}, e.message),
+    e.unreachable && link?.url ? h("div.small.muted", {}, "Indirizzo nel codice: " + link.url.replace(/^https:\/\//, "").slice(0, 60) + "…") : null,
+    e.unreachable && link?.url ? h("a.btn.wide", { href: link.url, target: "_blank", rel: "noopener" }, "Prova l'indirizzo") : null,
+    e.unreachable ? h("div.small.muted", {}, "Se si apre una pagina con scritto «Codice segreto sbagliato o foglio non collegato», "
+      + "lo script funziona: riprova. Se invece compare l'accesso a Google o un errore, sul PC va cambiata la distribuzione "
+      + "dello script (Gestisci deployment → Chi può accedere: Chiunque).") : null);
 }

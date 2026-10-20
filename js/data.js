@@ -35,7 +35,10 @@ export const copyDate = () => cache.copia?.generata || null;
 
 // ---------------------------------------------------------------- codice di collegamento (dal PC)
 export function decodeCode(code) {
-  code = String(code || "").trim();
+  // tollera spazi e a-capo aggiunti copiando il codice da mail o messaggi
+  code = String(code || "").replace(/\s+/g, "");
+  const i = code.indexOf("CF1.");
+  if (i > 0) code = code.slice(i);
   if (!code.startsWith("CF1.")) throw new Error("Il codice deve iniziare con CF1. — copialo da Impostazioni sul PC.");
   let b = code.slice(4).replace(/-/g, "+").replace(/_/g, "/");
   b += "=".repeat((4 - (b.length % 4)) % 4);
@@ -52,8 +55,14 @@ export async function call(payload, link = settings) {
     r = await fetch(link.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ ...payload, token: link.token }), redirect: "follow" });
   } catch {
-    const e = new Error("Nessuna connessione: le voci restano sul telefono e partono appena torna la rete.");
-    e.offline = true;
+    // il telefono è online ma il foglio non risponde a questa app: quasi sempre è la distribuzione dello script
+    const online = navigator.onLine !== false;
+    const e = new Error(online
+      ? "Il foglio Google non risponde a questa app. Di solito è l'impostazione dello script: «Chi può accedere» "
+        + "deve essere «Chiunque» (non «Chiunque con un account Google»). Tocca «Prova l'indirizzo» per controllare."
+      : "Nessuna connessione: le voci restano sul telefono e partono appena torna la rete.");
+    e.offline = !online;
+    e.unreachable = online;
     throw e;
   }
   const j = await r.json().catch(() => null);
