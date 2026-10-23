@@ -8,7 +8,7 @@ import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
 
-export const APP_VERSION = "1.4.0";
+export const APP_VERSION = "1.5.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -45,7 +45,7 @@ function drawHeader() {
   const pend = D.pendingOps().length;
   const cd = D.copyDate();
   const info = [cd ? `dati del PC del ${fmtDate(cd)}` : "dati del PC non ancora arrivati",
-    pend ? `${pend} in attesa del PC` : null, D.unsentCount() ? `${D.unsentCount()} da inviare` : null].filter(Boolean).join(" · ");
+    pend ? `⏳ ${pend} non ancora negli Excel` : null, D.unsentCount() ? `${D.unsentCount()} da inviare` : null].filter(Boolean).join(" · ");
   fill(header, h("div.top-title", {}, h("b", {}, "Cashflow"), h("span", {}, " · " + title),
     h("div.top-info", {}, info)),
   h("button.icon-btn", { onclick: () => D.sync(), "aria-label": "Aggiorna i dati" }, st));
@@ -119,8 +119,25 @@ async function installUpdate() {
 function start() {
   fill(app, header, updBar, main, nav);
   render();
-  D.sync();
+  D.sync().then(startupNotice);
   wire();
+}
+
+/** All'apertura: dice se è tutto aggiornato o cosa non è ancora stato scritto negli Excel. */
+function startupNotice() {
+  const s = D.status;
+  if (s.error) return;          // l'errore è già in evidenza in alto
+  const pend = D.notWrittenCount();
+  const other = D.otherPendingCount();
+  if (pend) {
+    toast(`⏳ ${pend} ${pend === 1 ? "voce non ancora scritta" : "voci non ancora scritte"} negli Excel`
+      + (other ? ` (${other} dall'altro telefono)` : "") + ": le vedi già qui, il PC le scrive appena è acceso.", "warn", 6000);
+  } else if (s.otherError) {
+    toast(`Dati aggiornati, ma il foglio dell'altra persona non risponde: ${s.otherError}`, "warn", 6000);
+  } else {
+    const cd = D.copyDate();
+    toast(`✅ Tutto aggiornato${cd ? ` · dati del PC del ${fmtDate(cd)}` : ""}`, "ok", 3500);
+  }
 }
 
 async function boot() {

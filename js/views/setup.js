@@ -65,10 +65,11 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
       row("Utente", `${p.utente || "—"} · versione ${p.profilo === "tania" ? "Tania" : "Michele"}`, null),
       row("Copia dal PC", D.copyDate() ? M.fmtDate(D.copyDate()) : "non ancora arrivata", null),
       row("Anni", `personali ${ys.join(", ") || "—"} · comuni ${cys.join(", ") || "—"}`, null),
-      row("Voci in attesa del PC", String(D.pendingOps().length), null),
+      row("Voci non ancora negli Excel", D.pendingOps().length ? `⏳ ${D.pendingOps().length}` : "nessuna ✅", null),
       row("Avvisi", errs ? `${errs} modifiche non applicate` : "nessuno", h("button.btn.small-btn", { onclick: conflictsSheet }, "Vedi")),
       h("button.btn.wide", { onclick: () => D.sync() }, "Aggiorna adesso")),
     securityCard(rerender),
+    otherCard(rerender),
     h("div.card", {}, h("div.card-title", {}, "Collegamento"),
       row("Nome di questo telefono", D.settings.device, h("button.btn.small-btn", { onclick: () => editName(rerender) }, "Cambia")),
       row("Codice di collegamento", "salvato su questo telefono", h("button.btn.small-btn", { onclick: () => editCode(rerender) }, "Cambia")),
@@ -83,6 +84,40 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
         h("ol", {}, h("li", {}, "Apri questa pagina con Safari."), h("li", {}, "Tocca Condividi (il quadrato con la freccia)."),
           h("li", {}, "«Aggiungi alla schermata Home»."), h("li", {}, "Apri Cashflow dall'icona: si comporta come un'app.")))));
   void rerender;
+}
+
+function otherCard(rerender) {
+  const p = D.profile();
+  const who = p.altra_persona || "l'altra persona";
+  const card = h("div.card", {}, h("div.card-title", {}, `🤝 Foglio di ${who}`));
+  const on = D.otherLinked();
+  const msg = on
+    ? (D.status.otherError ? `⚠️ Collegato, ma ora non risponde: ${D.status.otherError}`
+      : `Collegato: vedi subito le spese comuni che ${who} aggiunge dal suo telefono, anche con i PC spenti `
+        + `(${D.otherPendingCount()} non ancora negli Excel).`)
+    : `Incolla il codice del telefono di ${who} (lo trova nel suo Cashflow sul PC → Impostazioni → App per iPhone → `
+      + "Copia) per vedere subito le sue spese comuni, anche quando i PC sono spenti.";
+  fill(card, card.firstChild, h("p.muted.small", {}, msg),
+    on ? h("button.btn.wide.danger", { onclick: async () => {
+      if (await confirmBox(`Scollegare il foglio di ${who}?`, "Scollega")) { D.unlinkOther(); rerender(); }
+    } }, "Scollega") : h("button.btn.wide.primary", { onclick: () => linkOtherSheet(who, rerender) }, `Collega il foglio di ${who}`));
+  return card;
+}
+
+function linkOtherSheet(who, rerender) {
+  const s = sheet(`Foglio di ${who}`);
+  const code = h("textarea.code", { rows: 4, placeholder: "CF1.…", autocapitalize: "off", autocorrect: "off", spellcheck: false });
+  const err = h("div.form-err");
+  const b = h("button.btn.primary.wide", {}, "Collega");
+  b.onclick = () => busy(b, (async () => {
+    err.textContent = "";
+    try { await D.linkOther(code.value); } catch (e) { showErr(err, e, null); return; }
+    toast("Collegato ✓", "ok");
+    s.close();
+    rerender();
+  })(), "Controllo…");
+  fill(s.body, h("p.muted", {}, `Il codice è quello del telefono di ${who} (inizia con CF1.). Serve solo per leggere le `
+    + "sue spese comuni non ancora scritte negli Excel."), h("label.field", {}, h("span", {}, "Codice"), code), err, b);
 }
 
 function editName(rerender) {

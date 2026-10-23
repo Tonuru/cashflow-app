@@ -14,17 +14,18 @@ const K_SEEN = "cf.seenErrors";
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k) || "null") ?? d; } catch { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* spazio pieno */ } }
 
-export const settings = Object.assign({ url: "", token: "", device: "" }, load(K_SETTINGS, {}));
+export const settings = Object.assign({ url: "", token: "", device: "", other: null }, load(K_SETTINGS, {}));
 export function saveSettings(patch = {}) { Object.assign(settings, patch); save(K_SETTINGS, settings); }
 export const isLinked = () => !!(settings.url && settings.token);
 
-let cache = load(K_CACHE, { copia: null, coda: [], errori: [], letto: null });
+let cache = load(K_CACHE, { copia: null, coda: [], errori: [], letto: null, altroCoda: [] });
 let queue = load(K_QUEUE, []);           // operazioni del telefono non ancora confermate dal foglio
 let seen = new Set(load(K_SEEN, []));     // conflitti già letti
 const listeners = new Set();
 export const onChange = (fn) => listeners.add(fn);
 const emit = (what = "data") => listeners.forEach((fn) => fn(what));
-export const status = { syncing: false, error: "", offline: false };
+export const status = { syncing: false, error: "", offline: false, otherError: "", synced: 0 };
+export const otherLinked = () => !!(settings.other && settings.other.url && settings.other.token);
 
 export const copia = () => cache.copia;
 export const profile = () => ({ utente: cache.copia?.utente || "", profilo: cache.copia?.profilo || "michele",
@@ -76,7 +77,7 @@ export async function sync() {
   status.syncing = true;
   status.error = "";
   emit("status");
-  const before = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length]);
+  const before = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda]);
   try {
     const unsent = queue.filter((op) => !op.sent);
     if (unsent.length) {
@@ -86,19 +87,29 @@ export async function sync() {
       save(K_QUEUE, queue);
     }
     const st = await call({ azione: "stato" });
-    cache = { copia: st.copia || cache.copia, coda: st.coda || [], errori: st.errori || [], letto: M.nowIso() };
+    // spese comuni mandate dal telefono dell'altra persona e non ancora negli Excel: si vedono subito qui
+    let altroCoda = cache.altroCoda || [];
+    status.otherError = "";
+    if (otherLinked()) {
+      try {
+        const o = await call({ azione: "coda" }, settings.other);
+        altroCoda = (o.coda || []).filter((op) => op.kind === "comune").map((op) => ({ ...op, _altro: true }));
+      } catch (e) { status.otherError = e.message; }
+    } else altroCoda = [];
+    cache = { copia: st.copia || cache.copia, coda: st.coda || [], errori: st.errori || [], letto: M.nowIso(), altroCoda };
     // inviate e non più in coda = il PC le ha già scritte (o rifiutate): non servono più qui
     const inQueue = new Set(cache.coda.map((o) => o.qid));
     queue = queue.filter((op) => !op.sent || inQueue.has(op.qid));
     save(K_QUEUE, queue);
     save(K_CACHE, cache);
     status.offline = false;
+    status.synced += 1;
   } catch (e) {
     status.error = e.message;
     status.offline = !!e.offline;
   } finally {
     status.syncing = false;
-    const after = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length]);
+    const after = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda]);
     emit(after !== before ? "data" : "status");
   }
 }
@@ -126,6 +137,7 @@ export const comuneData = (y) => fileData("comune", y);
 /** Operazioni non ancora scritte dal PC: quelle in coda sul foglio (anche da altri telefoni) + le mie. */
 export function pendingOps() {
   const byId = new Map();
+  for (const op of cache.altroCoda || []) byId.set(op.qid, op);
   for (const op of cache.coda || []) byId.set(op.qid, op);
   for (const op of queue) byId.set(op.qid, op);
   return [...byId.values()].sort((a, b) => (a.t || 0) - (b.t || 0));
@@ -247,6 +259,21 @@ export async function deleteMov(kind, year, id) {
 export function pendingFor(id) {
   return pendingOps().filter((op) => op.id === id || op.row?.id === id);
 }
+
+/** Voci (anche dell'altro telefono) che nessun PC ha ancora scritto negli Excel. */
+export const notWrittenCount = () => pendingOps().length;
+export const otherPendingCount = () => (cache.altroCoda || []).length;
+export const copyBy = () => cache.copia?.aggiornata_da || cache.copia?.pc || "";
+
+/** Collega il foglio dell'altra persona (il suo codice CF1.): per vedere subito le sue spese comuni. */
+export async function linkOther(code) {
+  const link = decodeCode(code);
+  if (link.url === settings.url) throw new Error("Questo è il codice del TUO foglio: serve quello dell'altra persona.");
+  await call({ azione: "coda" }, link);
+  saveSettings({ other: link });
+  await sync();
+}
+export function unlinkOther() { saveSettings({ other: null }); cache.altroCoda = []; save(K_CACHE, cache); emit("data"); }
 
 export function resetAll() {
   for (const k of [K_SETTINGS, K_CACHE, K_QUEUE, K_SEEN]) localStorage.removeItem(k);

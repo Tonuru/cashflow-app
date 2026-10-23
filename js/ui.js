@@ -33,11 +33,11 @@ export const C = {
 };
 export const moneyColor = (v) => (v > 0.004 ? C.green : v < -0.004 ? C.red : C.text);
 
-export function toast(msg, kind = "") {
-  const t = h("div.toast" + (kind ? "." + kind : ""), {}, msg);
+export function toast(msg, kind = "", ms = 0) {
+  const t = h("div.toast" + (kind ? "." + kind : ""), { onclick: () => t.remove() }, msg);
   document.body.append(t);
   requestAnimationFrame(() => t.classList.add("show"));
-  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, kind === "error" ? 5000 : 2600);
+  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, ms || (kind === "error" ? 5000 : 2600));
 }
 
 /** Pannello che sale dal basso. Ritorna {el, close, body}. */

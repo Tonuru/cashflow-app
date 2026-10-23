@@ -249,3 +249,5 @@ html { touch-action: manipulation; }       /* niente zoom col doppio tocco */
 .card .btn.wide + .muted { margin-top: 8px; }
 .done-row { color: var(--green); font-size: 14px; padding: 4px 2px; }
 .center > .chip { margin: 4px auto 8px; }
+.toast.warn { background: #6b4e12; }
+.toast { max-width: calc(100vw - 32px); width: max-content; text-align: center; line-height: 1.35; }
