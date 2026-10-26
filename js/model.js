@@ -472,3 +472,88 @@ export function pazienti(movs, y, mo) {
     return [p, rows, pyRound2(rows.reduce((a, r) => a + Number(r.importo || 0), 0))];
   }).sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
 }
+
+// ---------------------------------------------------------------- spese fisse, scadenze, budget
+// Stessi calcoli di cashflow/core/fisse.py e scadenze.py.
+export const RIPETI_MESI = { "Una volta": 0, "Ogni mese": 1, "Ogni 2 mesi": 2, "Ogni 3 mesi": 3, "Ogni 6 mesi": 6, "Ogni anno": 12 };
+
+function lastOf(movs, fid) {
+  let best = null;
+  for (const m of movs) {
+    if (m.fissa !== fid || !m.data) continue;
+    if (!best || (m.data + (m.inserito || "")) > (best.data + (best.inserito || ""))) best = m;
+  }
+  return best;
+}
+
+export function fissaProposal(f, movs, comune = false, quotaDef = 50, payerDef = "") {
+  const last = lastOf(movs, f.id);
+  const out = { importo: last ? last.importo : f.importo ?? null };
+  if (comune) {
+    out.pagato_da = (last && last.pagato_da) || f.pagato_da || payerDef;
+    let qa = last ? last.quota_a : null;
+    if (qa == null || qa === "") qa = f.quota_a;
+    out.quota_a = Number(qa == null || qa === "" ? quotaDef : qa);
+  }
+  return out;
+}
+
+export function fisseMonth(fisse, movs, y, mo, comune = false, quotaDef = 50, payerDef = "") {
+  const out = [];
+  for (const f of fisse || []) {
+    const here = movs.filter((x) => x.fissa === f.id && inMonth(x.data, y, mo));
+    if (f.attiva === false && !here.length) continue;
+    out.push({ fissa: f, voce: here[0] || null, voci: here, proposta: fissaProposal(f, movs, comune, quotaDef, payerDef) });
+  }
+  return out;
+}
+
+const lastDay = (y, mo) => new Date(Date.UTC(y, mo, 0)).getUTCDate();
+export function fissaDate(f, y, mo, today = todayIso()) {
+  if (f.giorno) return `${y}-${pad(mo)}-${pad(Math.min(Number(f.giorno), lastDay(y, mo)))}`;
+  if (today.slice(0, 7) === `${y}-${pad(mo)}`) return today;
+  return `${y}-${pad(mo)}-01`;
+}
+
+export function fissaRow(f, y, mo, importo, comune = false, pagatoDa = "", quotaA = 50) {
+  const data = fissaDate(f, y, mo);
+  if (comune) {
+    return { data, tipo: T.SPESA, importo: Math.abs(importo), categoria: f.categoria || "", descrizione: f.nome || "",
+      pagato_da: pagatoDa, quota_a: Number(quotaA), quota_b: pyRound2(100 - Number(quotaA)), note: "", fissa: f.id };
+  }
+  return { data, tipo: f.tipo || T.USCITA, importo: Math.abs(importo), categoria: f.categoria || "",
+    sottocategoria: f.sottocategoria || "", descrizione: f.nome || "", metodo: f.metodo || "", note: "", fissa: f.id };
+}
+
+export function addMonthsIso(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = m - 1 + n;
+  const yy = y + Math.floor(t / 12), mm = (t % 12) + 1;
+  return `${yy}-${pad(mm)}-${pad(Math.min(d, lastDay(yy, mm)))}`;
+}
+
+/** Scadenze da ricordare adesso: [[scadenza, giorni che mancano]] (negativo = già passata). */
+export function scadenzeDue(scadenze, today = todayIso()) {
+  const t0 = Date.parse(today + "T00:00:00Z");
+  const out = [];
+  for (const x of scadenze || []) {
+    if (x.attiva === false || !x.data) continue;
+    const left = Math.round((Date.parse(x.data + "T00:00:00Z") - t0) / 864e5);
+    if (left <= Number(x.anticipo || 0)) out.push([x, left]);
+  }
+  return out.sort((a, b) => a[1] - b[1]);
+}
+export function whenText(left) {
+  if (left < 0) return `scaduta da ${-left} giorn${left === -1 ? "o" : "i"}`;
+  if (left === 0) return "scade oggi";
+  if (left === 1) return "scade domani";
+  return `fra ${left} giorni`;
+}
+
+export const BUDGET_STEPS = [70, 80, 90, 100];
+export function budgetStatus(spese, budget) {
+  if (!budget || budget <= 0) return null;
+  const pct = (spese / budget) * 100;
+  const step = Math.max(0, ...BUDGET_STEPS.filter((s) => pct >= s));
+  return { pct, step, resto: pyRound2(budget - spese), budget, spese: pyRound2(spese) };
+}

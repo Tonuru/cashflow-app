@@ -5,6 +5,7 @@ import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, donut, bars, sheet, toast, busy, fill } from "../ui.js";
 import { movimentoSheet, vociSheet, movRow } from "../forms.js";
+import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 
 const eduMonths = new Set();   // mesi in cui Tania ha acceso l'Educativa (solo finché l'app è aperta)
 const nextMonth = (y, m) => (m === 12 ? [y + 1, 1] : [y, m + 1]);
@@ -141,7 +142,7 @@ export function renderMese(root, rerender, view) {
   };
   const newMov = (tipo, categoria) => () => movimentoSheet({ tipo, data: defaultDate(view), categoria }, { onDone: rerender });
 
-  fill(root, top, hero, stats,
+  fill(root, top, hero, stats, budgetCard(y, m), scadenzeCard(rerender), fisseCard("personal", y, m, rerender),
     h("div.group-title", {}, "🧠 Libera professione"), pazCard, contiCard,
     section("sec-sedute", "Sedute", inMonth(M.isProfIncome), C.green, () => sedutaSheet(defaultDate(view), "", rerender)),
     section("sec-prof", "Spese professionali", inMonth(M.isProfCost), C.red, newMov(M.T.USCITA, M.CAT_SPESE_PROF), "−"),

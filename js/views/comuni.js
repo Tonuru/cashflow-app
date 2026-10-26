@@ -3,6 +3,7 @@ import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, fill } from "../ui.js";
 import { comuneSheet } from "../forms.js";
+import { fisseCard } from "./mensile.js";
 
 export const view = { y: new Date().getFullYear(), m: new Date().getMonth() + 1, all: false, q: "" };
 
@@ -59,7 +60,7 @@ export function render(root, rerender) {
 
   fill(root, global, nav, monthCards,
     h("button.btn.primary.wide.big", { onclick: () => comuneSheet({ data: defaultDate() }, { onDone: rerender }) }, "＋ Aggiungi spesa comune"),
-    list, helpCard(),
+    fisseCard("comune", y, m, rerender), list, helpCard(),
     h("button.fab", { onclick: () => comuneSheet({ data: defaultDate() }, { onDone: rerender }), "aria-label": "Aggiungi spesa comune" }, "＋"));
 }
 

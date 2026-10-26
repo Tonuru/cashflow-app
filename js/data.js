@@ -213,6 +213,41 @@ export function taniaMonth(y, m) {
   return M.taniaMonth(movs, y, m, indici);
 }
 const latest = (kind, y) => fileData(kind, y) || fileData(kind, yearsOf(kind).slice(-1)[0]);
+// ---------------------------------------------------------------- spese fisse, scadenze, budget
+const latestYear = (kind) => { const ys = yearsOf(kind); return ys.length ? ys[ys.length - 1] : new Date().getFullYear(); };
+export const fisse = (kind) => latest(kind, new Date().getFullYear())?.fisse || [];
+export const personalInfo = () => latest("personal", new Date().getFullYear())?.info || {};
+/** Scadenze, con le «fatto» mandate dal telefono e non ancora scritte dal PC già applicate. */
+export function scadenze() {
+  const list = (latest("personal", new Date().getFullYear())?.scadenze || []).map((x) => ({ ...x }));
+  for (const op of pendingOps()) {
+    if (op.op !== "scad_done") continue;
+    const x = list.find((s) => s.id === op.id);
+    if (!x || x.data !== op.from) continue;
+    const n = M.RIPETI_MESI[x.ripeti] ?? 12;
+    if (!n) x.attiva = false; else x.data = M.addMonthsIso(x.data, n);
+    x._pending = true;
+  }
+  return list;
+}
+export function doneScadenza(x) {
+  enqueue({ op: "scad_done", kind: "personal", year: latestYear("personal"), id: x.id, from: x.data });
+}
+export function payerDefault() {
+  const info = comuneInfo();
+  if (!info) return "";
+  const pref = info.pagato_da_predefinito || "";
+  if (pref === info.persona_a || pref === info.persona_b) return pref;
+  const me = meInComune();
+  return me === info.persona_a || me === info.persona_b ? me : info.persona_a;
+}
+export function budget() {
+  const i = personalInfo();
+  return i.budget_attivo ? Number(i.budget_mese) || null : null;
+}
+export function monthSpese(y, m) {
+  return isMichele() ? M.monthTotals(allMovs(y), y, m).uscite : taniaMonth(y, m).spese;
+}
 export const categorie = (y) => latest("personal", y)?.categorie || [];
 export const metodi = (y) => latest("personal", y)?.metodi || M.DEFAULT_METODI;
 export const comuneCategorie = (y) => latest("comune", y)?.categorie || [];

@@ -7,8 +7,9 @@ import * as Comuni from "./views/comuni.js";
 import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
+import { notices } from "./views/mensile.js";
 
-export const APP_VERSION = "1.5.0";
+export const APP_VERSION = "1.6.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -138,6 +139,8 @@ function startupNotice() {
     const cd = D.copyDate();
     toast(`✅ Tutto aggiornato${cd ? ` · dati del PC del ${fmtDate(cd)}` : ""}`, "ok", 3500);
   }
+  // budget del mese (a gradini) e scadenze in arrivo, uno dopo l'altro
+  notices().forEach(([msg, kind], i) => setTimeout(() => toast(msg, kind, 5000), 3800 + i * 5300));
 }
 
 async function boot() {

@@ -251,3 +251,19 @@ html { touch-action: manipulation; }       /* niente zoom col doppio tocco */
 .center > .chip { margin: 4px auto 8px; }
 .toast.warn { background: #6b4e12; }
 .toast { max-width: calc(100vw - 32px); width: max-content; text-align: center; line-height: 1.35; }
+
+/* spese fisse, budget, scadenze */
+.fx-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.fx-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.03); }
+.fx-row.done { opacity: .9; }
+.fx-name { flex: 1 1 140px; min-width: 0; }
+.fx-in { display: flex; gap: 6px; align-items: center; }
+.fx-amt { width: 92px; text-align: right; }
+.fx-ok { color: var(--green); font-weight: 700; white-space: nowrap; }
+.fx-extra { flex: 1 1 100%; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.fx-sel { width: auto; min-width: 84px; padding-right: 26px; }
+.fx-count { color: var(--muted); font-size: 13px; font-weight: 600; }
+.fx-row.pending .fx-ok::after { content: " · in attesa del PC"; color: var(--amber); font-weight: 400; font-size: 12px; }
+.bbar { height: 10px; background: rgba(255,255,255,.08); border-radius: 6px; overflow: hidden; margin: 4px 0 8px; }
+.bbar i { display: block; height: 100%; border-radius: 6px; }
+.small-btn { padding: 7px 12px; font-size: 14px; }

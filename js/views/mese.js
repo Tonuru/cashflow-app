@@ -4,6 +4,7 @@ import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, donut, dots, fill } from "../ui.js";
 import { movimentoSheet, vociSheet, movRow, comuneSheet } from "../forms.js";
 import * as Tania from "./tania.js";
+import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 
 export const MODI = [
   ["Stipendio", "Rimane", "stipendio − spese"],
@@ -89,7 +90,7 @@ export function render(root, rerender) {
   };
   const list = (tipo) => M.filterMovs(movs, { year: y, month: m, tipo });
 
-  fill(root, top, hero, three, entrate, spese,
+  fill(root, top, hero, three, budgetCard(y, m), scadenzeCard(rerender), entrate, fisseCard("personal", y, m, rerender), spese,
     section("sec-spese", "Spese", M.T.USCITA, list(M.T.USCITA), C.red, { sign: "−" }),
     mich ? section("sec-stip", "Stipendio", M.T.STIPENDIO, list(M.T.STIPENDIO), C.green) : null,
     section("sec-extra", mich ? "Entrate extra" : "Entrate", M.T.ENTRATA, list(M.T.ENTRATA), C.green),
