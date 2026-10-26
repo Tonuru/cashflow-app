@@ -1,4 +1,5 @@
 // Primo collegamento (al primo avvio) e Impostazioni.
+import { semaforiCard } from "../semafori.js";
 import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, toast, busy, confirmBox, fill, sheet } from "../ui.js";
@@ -68,6 +69,7 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
       row("Voci non ancora negli Excel", D.pendingOps().length ? `⏳ ${D.pendingOps().length}` : "nessuna ✅", null),
       row("Avvisi", errs ? `${errs} modifiche non applicate` : "nessuno", h("button.btn.small-btn", { onclick: conflictsSheet }, "Vedi")),
       h("button.btn.wide", { onclick: () => D.sync() }, "Aggiorna adesso")),
+    semaforiCard(),
     securityCard(rerender),
     otherCard(rerender),
     h("div.card", {}, h("div.card-title", {}, "Collegamento"),

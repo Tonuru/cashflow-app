@@ -267,3 +267,24 @@ html { touch-action: manipulation; }       /* niente zoom col doppio tocco */
 .bbar { height: 10px; background: rgba(255,255,255,.08); border-radius: 6px; overflow: hidden; margin: 4px 0 8px; }
 .bbar i { display: block; height: 100%; border-radius: 6px; }
 .small-btn { padding: 7px 12px; font-size: 14px; }
+
+/* semafori dei file */
+.sem-list { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 10px; }
+.sem-row { display: flex; align-items: flex-start; gap: 10px; }
+.sem-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; margin-top: 4px; background: #5c6673; }
+.sem-dot.green { background: #3DD68C; box-shadow: 0 0 6px rgba(61,214,140,.6); }
+.sem-dot.amber { background: #F5B83D; box-shadow: 0 0 6px rgba(245,184,61,.6); }
+.sem-dot.red { background: #FF6B6B; box-shadow: 0 0 6px rgba(255,107,107,.7); }
+.sem-line { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
+.sem-line .sem-dot { margin-top: 0; }
+.sem-dots { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.sem-dots .sem-dot { width: 8px; height: 8px; margin: 0; }
+/* obiettivi, patrimonio */
+.ob-row { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.ob-row:last-child { border-bottom: 0; }
+.big-val { font-size: 26px; font-weight: 800; margin: 2px 0 4px; }
+.card.hl { border: 1px solid #F5B83D; }
+.pt-row { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
+.pt-bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 5px; overflow: hidden; }
+.pt-bar i { display: block; height: 100%; background: #4C8DFF; border-radius: 5px; }
+.pt-v { text-align: right; font-variant-numeric: tabular-nums; }

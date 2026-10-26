@@ -5,6 +5,7 @@ import { h, C, moneyColor, monthNav, donut, bars, dots, sheet, toast, busy, fill
 import { vociSheet } from "../forms.js";
 import { MODI, setMode, view as meseView, openMov } from "./mese.js";
 import * as Tania from "./tania.js";
+import { obiettiviCard, patrimonioCard, previsioneCard } from "./funzioni.js";
 
 export const view = { y: new Date().getFullYear(), inc13: true, incex: true, netM: false, netY: false };
 
@@ -101,7 +102,8 @@ export function render(root, rerender, goMonth) {
     h("div.muted.small.center", {}, "Scorri di lato · tocca un titolo per la spiegazione, un mese per aprirlo"),
     h("div.tscroll", {}, h("table.ytable", {}, h("thead", {}, th), h("tbody", {}, rows))));
 
-  fill(root, top, hero, stats, chart, table, annualCard(y, yt.an, movs, rerender), medieCard(movs, y),
+  fill(root, top, hero, stats, previsioneCard(), patrimonioCard(), obiettiviCard("personal", rerender), chart, table,
+    annualCard(y, yt.an, movs, rerender), medieCard(movs, y),
     pivotCard(movs, y, rerender), yearsCard(mode, (yy) => { view.y = yy; rerender(); }, rerender));
 }
 

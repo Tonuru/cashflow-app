@@ -8,8 +8,10 @@ import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
 import { notices } from "./views/mensile.js";
+import { noticesFunzioni } from "./views/funzioni.js";
+import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.6.0";
+export const APP_VERSION = "1.7.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
@@ -48,7 +50,7 @@ function drawHeader() {
   const info = [cd ? `dati del PC del ${fmtDate(cd)}` : "dati del PC non ancora arrivati",
     pend ? `⏳ ${pend} non ancora negli Excel` : null, D.unsentCount() ? `${D.unsentCount()} da inviare` : null].filter(Boolean).join(" · ");
   fill(header, h("div.top-title", {}, h("b", {}, "Cashflow"), h("span", {}, " · " + title),
-    h("div.top-info", {}, info)),
+    h("div.top-info", { onclick: () => setTab("impostazioni") }, info, semaforiDots())),
   h("button.icon-btn", { onclick: () => D.sync(), "aria-label": "Aggiorna i dati" }, st));
   // conflitti: in evidenza finché non li leggi
   const errs = D.newErrors();
@@ -140,7 +142,7 @@ function startupNotice() {
     toast(`✅ Tutto aggiornato${cd ? ` · dati del PC del ${fmtDate(cd)}` : ""}`, "ok", 3500);
   }
   // budget del mese (a gradini) e scadenze in arrivo, uno dopo l'altro
-  notices().forEach(([msg, kind], i) => setTimeout(() => toast(msg, kind, 5000), 3800 + i * 5300));
+  notices().concat(noticesFunzioni()).forEach(([msg, kind], i) => setTimeout(() => toast(msg, kind, 5000), 3800 + i * 5300));
 }
 
 async function boot() {

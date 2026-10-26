@@ -415,13 +415,27 @@ export const isProfIncome = (m) => (m.tipo || T.USCITA) === T.ENTRATA && m.categ
 export const isProfCost = (m) => (m.tipo || T.USCITA) === T.USCITA && m.categoria === CAT_SPESE_PROF;
 const prevMonth = (y, m) => (m === 1 ? [y - 1, 12] : [y, m - 1]);
 
+/** Data in cui conta una seduta (vedi calc.prof_date): pagata dopo → il giorno del pagamento, se si conta così. */
+export function profDate(m, mode) {
+  const inc = m.incasso;
+  if (!inc || mode === "seduta") return m.data;
+  if (inc === "no") return null;
+  return /^\d{4}-\d{2}-\d{2}/.test(inc) ? inc.slice(0, 10) : m.data;
+}
+export const isUnpaid = (m) => isProfIncome(m) && m.incasso === "no";
+
 export function professione(movs, y, mo, indici) {
   const ind = { ...INDICI_DEFAULT, ...(indici || {}) };
+  const mode = ind.sedute_mese;
   let inc = 0, spese = 0, sedute = 0;
   for (const m of movs) {
-    if (!inMonth(m.data, y, mo) || isAnnual(m)) continue;
-    if (isProfIncome(m)) { inc += Number(m.importo || 0); sedute += 1; }
-    else if (isProfCost(m)) spese += Number(m.importo || 0);
+    if (isAnnual(m)) continue;
+    if (isProfIncome(m)) {
+      if (inMonth(profDate(m, mode), y, mo)) { inc += Number(m.importo || 0); sedute += 1; }
+      continue;
+    }
+    if (!inMonth(m.data, y, mo)) continue;
+    if (isProfCost(m)) spese += Number(m.importo || 0);
   }
   const sogg = inc * ind.coef * ind.sogg, integr = inc * ind.integr, imposta = inc * ind.coef * ind.aliq;
   const tasse = sogg + integr + imposta;
@@ -557,3 +571,255 @@ export function budgetStatus(spese, budget) {
   const step = Math.max(0, ...BUDGET_STEPS.filter((s) => pct >= s));
   return { pct, step, resto: pyRound2(budget - spese), budget, spese: pyRound2(spese) };
 }
+
+
+// ---------------------------------------------------------------- obiettivi di risparmio (core/obiettivi.py)
+const ymN = (iso) => Number(iso.slice(0, 4)) * 12 + Number(iso.slice(5, 7)) - 1;
+const fromYmN = (n) => [Math.floor(n / 12), (n % 12) + 1];
+export const ymKey = (y, m) => `${y}-${pad(m)}`;
+export const OBIETTIVO_MODI = { manuale: "Versamenti a mano", percentuale: "% di quello che rimane ogni mese",
+  fisso: "Cifra fissa ogni mese" };
+
+/** rimane: {"AAAA-MM": quanto è rimasto quel mese} (serve solo al modo «percentuale»). */
+export function obiettivoStato(o, versamenti, rimane = {}, today = todayIso()) {
+  const modo = o.modo || "manuale", val = Number(o.valore || 0);
+  const cur = ymN(today);
+  const start = Math.min(o.dal ? ymN(o.dal) : cur, cur);
+  const vers = (versamenti || []).filter((v) => v.obiettivo === o.id);
+  const versTot = vers.reduce((a, v) => a + Number(v.importo || 0), 0);
+  let auto = 0;
+  const autoMesi = [];
+  if (modo === "fisso" && val) {
+    for (let n = start; n <= cur; n++) { auto += val; autoMesi.push(val); }
+  } else if (modo === "percentuale" && val) {
+    for (let n = start; n < cur; n++) {
+      const [y, m] = fromYmN(n);
+      const v = pyRound2(Math.max(0, Number(rimane[ymKey(y, m)] || 0)) * val / 100);
+      auto += v;
+      autoMesi.push(v);
+    }
+  }
+  const saved = pyRound2(Number(o.iniziale || 0) + versTot + auto);
+  const target = Number(o.obiettivo || 0);
+  const rest = target ? pyRound2(Math.max(0, target - saved)) : 0;
+  const pct = target > 0 ? Math.min(100, saved / target * 100) : 0;
+  let mesiLeft = null, alMese = null;
+  if (o.entro) {
+    mesiLeft = Math.max(0, ymN(o.entro) - cur + (modo === "fisso" ? 0 : 1));
+    alMese = mesiLeft ? pyRound2(rest / mesiLeft) : rest;
+  }
+  const elapsed = cur - start + 1;
+  const manualRate = elapsed > 0 ? versTot / elapsed : 0;
+  let rate = modo === "fisso" ? val + manualRate
+    : modo === "percentuale" ? (autoMesi.length ? autoMesi.reduce((a, b) => a + b, 0) / autoMesi.length : 0) + manualRate
+      : manualRate;
+  rate = pyRound2(rate);
+  let previsione = null, inTempo = null;
+  if (target && rest <= 0) { previsione = today.slice(0, 8) + "01"; inTempo = true; }
+  else if (target && rate > 0) {
+    const n = Math.ceil(rest / rate - 1e-9);
+    const [y, m] = fromYmN(cur + n);
+    previsione = `${y}-${pad(m)}-01`;
+    inTempo = !o.entro || ymN(previsione) <= ymN(o.entro);
+  } else if (target && o.entro) inTempo = false;
+  return { risparmiato: saved, versato: pyRound2(versTot), automatico: pyRound2(auto), obiettivo: target, manca: rest,
+    pct: Math.round(pct * 10) / 10, mesi_rimasti: mesiLeft, al_mese: alMese, ritmo: rate, previsione,
+    in_tempo: inTempo, raggiunto: !!target && rest <= 0, versamenti: vers };
+}
+export function previsioneText(st) {
+  if (st.raggiunto) return "Obiettivo raggiunto! 🎉";
+  if (!st.previsione) return "Ancora nessun ritmo per una previsione.";
+  const [y, m] = ym(st.previsione);
+  return `Al ritmo attuale ci arrivi a ${MESI[m - 1].toLowerCase()} ${y}${st.in_tempo === false ? " (dopo la data che hai scelto)" : ""}.`;
+}
+
+// ---------------------------------------------------------------- chiudi il mese (calc.chiudi_mese)
+export function chiudiMese(movs, pa, pb, y, mo) {
+  const spese = movs.filter((m) => m.tipo === T.SPESA && inMonth(m.data, y, mo));
+  const pagato = { [pa]: 0, [pb]: 0 }, quota = { [pa]: 0, [pb]: 0 }, cats = {};
+  let tot = 0;
+  for (const m of spese) {
+    const v = Number(m.importo || 0);
+    tot += v;
+    if (m.pagato_da in pagato) pagato[m.pagato_da] += v;
+    quota[pa] += v * Number(m.quota_a || 0) / 100;
+    quota[pb] += v * Number(m.quota_b || 0) / 100;
+    const c = m.categoria || "Senza categoria";
+    cats[c] = (cats[c] || 0) + v;
+  }
+  const end = mo === 12 ? `${y + 1}-01-01` : `${y}-${pad(mo + 1)}-01`;
+  const r2 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, pyRound2(v)]));
+  return { anno: y, mese: mo, totale: pyRound2(tot), n: spese.length, pagato: r2(pagato), quota: r2(quota),
+    categorie: Object.entries(cats).map(([c, v]) => [c, pyRound2(v)]).sort((a, b) => b[1] - a[1]),
+    saldo_fine_mese: comuneSaldo(movs.filter((m) => m.data && m.data < end), pa, pb), saldo_ora: comuneSaldo(movs, pa, pb) };
+}
+export function rimborsoRow(saldo, today = todayIso(), descrizione = "") {
+  if (!saldo?.debitore) return null;
+  return { data: today, tipo: T.RIMBORSO, importo: pyRound2(saldo.importo), categoria: "",
+    descrizione: descrizione || "Pareggio dei conti", pagato_da: saldo.debitore, quota_a: "", quota_b: "", note: "" };
+}
+
+// ---------------------------------------------------------------- previsione di fine anno (calc.previsione_anno)
+function scadOccurrences(scadenze, y) {
+  const out = [];
+  for (const x of scadenze || []) {
+    if (x.attiva === false || !x.data || !x.importo) continue;
+    let d = x.data, guard = 0;
+    while (d && Number(d.slice(0, 4)) <= y && guard < 400) {
+      if (Number(d.slice(0, 4)) === y) out.push([d, x]);
+      const n = RIPETI_MESI[x.ripeti || ""] ?? 12;
+      d = n ? addMonthsIso(d, n) : null;
+      guard++;
+    }
+  }
+  return out;
+}
+export function previsioneAnno(movs, y, fisse = [], scadenze = [], today = todayIso()) {
+  const [ty, tm] = ym(today);
+  const cm = ty === y ? tm : (y < ty ? 13 : 1);
+  const fx = (fisse || []).filter((f) => f.attiva !== false && (f.tipo || T.USCITA) === T.USCITA);
+  const ids = new Set(fx.map((f) => f.id));
+  const extraStip = (yy, mo) => movs.filter((m) => m.tipo === T.STIPENDIO && EXTRA_STIPENDIO.includes(m.categoria)
+    && inMonth(m.data, yy, mo) && !isAnnual(m)).reduce((a, m) => a + Number(m.importo || 0), 0);
+  const extraCat = (yy, cat) => {
+    const an = annual(movs, yy);
+    return an[cat === "Tredicesima" ? "tredicesima" : "quattordicesima"] + movs.filter((m) => m.tipo === T.STIPENDIO
+      && m.categoria === cat && !isAnnual(m) && inYear(m.data, yy)).reduce((a, m) => a + Number(m.importo || 0), 0);
+  };
+  const mesi = [], vari = [];
+  for (let mo = 1; mo <= 12; mo++) {
+    const t = monthTotals(movs, y, mo);
+    const r = rimanenti(t).totale;
+    const ex = extraStip(y, mo);
+    const stip = (t.per_tipo[T.STIPENDIO] || 0) - ex;
+    if (mo < cm || (mo === cm && stip > 0)) {
+      mesi.push({ mese: mo, valore: pyRound2(r), stimato: false });
+      if (stip > 0) {
+        const f = movs.filter((m) => ids.has(m.fissa) && (m.tipo || T.USCITA) === T.USCITA && inMonth(m.data, y, mo))
+          .reduce((a, m) => a + Number(m.importo || 0), 0);
+        vari.push(r - ex + f);
+      }
+    } else mesi.push({ mese: mo, valore: 0, stimato: true });
+  }
+  const media = vari.length ? vari.reduce((a, b) => a + b, 0) / vari.length : 0;
+  const fisseMese = fx.reduce((a, f) => a + Number(fissaProposal(f, movs).importo || 0), 0);
+  const occ = scadOccurrences(scadenze, y);
+  const tredi = {};
+  for (const [cat, mo] of [["Tredicesima", 12], ["Quattordicesima", 7]]) {
+    const got = extraCat(y, cat);
+    tredi[cat] = { arrivata: got > 0, importo: pyRound2(got > 0 ? got : extraCat(y - 1, cat)), mese: mo };
+  }
+  const scadList = [];
+  for (const x of mesi) {
+    if (!x.stimato) continue;
+    const sc = occ.filter(([d]) => Number(d.slice(5, 7)) === x.mese);
+    const scTot = sc.reduce((a, [, s]) => a + Number(s.importo || 0), 0);
+    sc.forEach(([d, s]) => scadList.push({ data: d, nome: s.nome, importo: Number(s.importo || 0) }));
+    let v = media - fisseMese - scTot;
+    for (const tr of Object.values(tredi)) if (tr.mese === x.mese && !tr.arrivata) v += tr.importo;
+    x.valore = pyRound2(v);
+  }
+  const an = annual(movs, y);
+  const annuali = pyRound2(an.stipendio + an.extra);
+  const finora = pyRound2(mesi.filter((x) => !x.stimato).reduce((a, x) => a + x.valore, 0) + annuali);
+  const resto = pyRound2(mesi.filter((x) => x.stimato).reduce((a, x) => a + x.valore, 0));
+  return { anno: y, mesi, media: pyRound2(media), mesi_media: vari.length, fisse_mese: pyRound2(fisseMese),
+    scadenze: scadList, tredicesime: tredi, annuali, finora, resto, fine_anno: pyRound2(finora + resto),
+    mesi_stimati: mesi.filter((x) => x.stimato).length };
+}
+
+// ---------------------------------------------------------------- patrimonio (core/patrimonio.py)
+export function patrimonioStoria(rows) {
+  const out = [];
+  let prev = null;
+  for (const r of (rows || []).filter((r) => r.data).sort((a, b) => (a.data < b.data ? -1 : 1))) {
+    out.push({ ...r, variazione: prev ? pyRound2(Number(r.totale || 0) - Number(prev.totale || 0)) : null });
+    prev = r;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- Tania (core/professione.py)
+export function accantonato(movs, y, indiciFor, metodo = "indici", perc = 25) {
+  const mesi = [];
+  for (let mo = 1; mo <= 12; mo++) {
+    const p = professione(movs, y, mo, indiciFor(y));
+    const v = metodo !== "percentuale" ? p.tasse : pyRound2(p.incasso * Number(perc || 0) / 100);
+    mesi.push({ mese: mo, incasso: p.incasso, accantonato: pyRound2(v) });
+  }
+  return { mesi, totale: pyRound2(mesi.reduce((a, x) => a + x.accantonato, 0)),
+    incasso: pyRound2(mesi.reduce((a, x) => a + x.incasso, 0)) };
+}
+const thisYear = (iso, y) => {
+  if (!iso) return null;
+  const md = iso.slice(5, 10);
+  return md === "02-29" && lastDay(y, 2) === 28 ? `${y}-02-28` : `${y}-${md}`;
+};
+const daysBetween = (a, b) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 864e5);
+export function tasseAnno(movs, y, indiciFor, scadenze, versate, metodo = "indici", perc = 25, today = todayIso()) {
+  const acc = accantonato(movs, y, indiciFor, metodo, perc);
+  const prev = accantonato(movs, y - 1, indiciFor, metodo, perc);
+  const [ty, tm] = ym(today);
+  const stima = y === ty ? pyRound2(acc.totale / Math.max(1, tm) * 12) : acc.totale;
+  const vers = (versate || []).filter((v) => inYear(v.data, y));
+  const pagato = pyRound2(vers.reduce((a, v) => a + Number(v.importo || 0), 0));
+  const items = [];
+  for (const s of scadenze || []) {
+    if (s.attiva === false) continue;
+    const d = thisYear(s.data, y);
+    const pv = s.importo ? Number(s.importo)
+      : pyRound2(((s.base || "anno_prima") === "anno_prima" ? prev.totale : stima) * Number(s.percentuale || 0) / 100);
+    const paid = pyRound2(vers.filter((v) => v.voce === s.id).reduce((a, v) => a + Number(v.importo || 0), 0));
+    items.push({ scadenza: s, data: d, previsto: pyRound2(pv), pagato: paid, fatto: paid > 0 && paid >= pv - 0.5,
+      giorni: d ? daysBetween(today, d) : null });
+  }
+  items.sort((a, b) => ((a.data || "9999") < (b.data || "9999") ? -1 : 1));
+  const previsto = pyRound2(items.reduce((a, x) => a + x.previsto, 0));
+  return { anno: y, accantonato: acc.totale, mesi: acc.mesi, incasso: acc.incasso, anno_prima: prev.totale,
+    stima_anno: stima, pagato, da_parte: pyRound2(acc.totale - pagato), previsto,
+    mancante: pyRound2(Math.max(0, previsto - pagato)), scadenze: items, versate: vers };
+}
+export const SOGLIA_STEPS = [80, 90, 100];
+export function soglia(movs, y, categorie, limite, mode = null, today = todayIso()) {
+  const cats = new Set(categorie && categorie.length ? categorie : [CAT_PROFESSIONE]);
+  let tot = 0;
+  for (const m of movs) {
+    if ((m.tipo || T.USCITA) !== T.ENTRATA || !cats.has(m.categoria) || isAnnual(m)) continue;
+    const d = isProfIncome(m) ? profDate(m, mode) : m.data;
+    if (inYear(d, y)) tot += Number(m.importo || 0);
+  }
+  let prev = tot;
+  if (y === ym(today)[0]) {
+    const days = daysBetween(`${y}-01-01`, `${y + 1}-01-01`);
+    const frac = (daysBetween(`${y}-01-01`, today) + 1) / days;
+    prev = frac > 0 ? tot / frac : tot;
+  }
+  limite = Number(limite || 0);
+  const pct = limite ? tot / limite * 100 : 0;
+  return { ricavi: pyRound2(tot), previsione: pyRound2(prev), limite, pct: Math.round(pct * 10) / 10,
+    pct_prev: limite ? Math.round(prev / limite * 1000) / 10 : 0,
+    step: Math.max(0, ...SOGLIA_STEPS.filter((s) => pct >= s)), supera: !!limite && prev > limite,
+    resto: pyRound2(limite - tot) };
+}
+export function sogliaText(st) {
+  return `Ricavi ${fmtEur(st.ricavi)} su ${fmtEur(st.limite)} (${st.pct.toFixed(0)}%) · al ritmo attuale a dicembre `
+    + `arrivi a ${fmtEur(st.previsione)}${st.supera ? " ⚠️ oltre la soglia" : ""}`;
+}
+export function daIncassare(movs, today = todayIso(), giorni = 30) {
+  const by = {};
+  for (const m of movs) if (isUnpaid(m) && m.data) (by[m.sottocategoria || "Senza nome"] ||= []).push(m);
+  const out = Object.entries(by).map(([p, rows]) => {
+    rows.sort((a, b) => (a.data < b.data ? -1 : 1));
+    const old = daysBetween(rows[0].data, today);
+    return { paziente: p, sedute: rows, totale: pyRound2(rows.reduce((a, r) => a + Number(r.importo || 0), 0)),
+      giorni: old, ritardo: old >= Number(giorni || 0) };
+  });
+  return out.sort((a, b) => b.giorni - a.giorni || a.paziente.toLowerCase().localeCompare(b.paziente.toLowerCase()));
+}
+
+// impostazioni (schema.SETTING_DEFAULTS)
+export const SETTING_DEFAULTS = { obiettivi_attivi: false, patrimonio_attivo: true, previsione_attiva: true,
+  tasse_attivo: false, tasse_metodo: "indici", tasse_perc: 25, soglia_attiva: false, soglia_importo: 85000,
+  soglia_categorie: ["Libera professione"], sedute_attive: true, sedute_mese: "pagamento", sedute_giorni: 30,
+  dichiarazione_attiva: true, chiudi_mese_attivo: true };
+export const setting = (info, k) => (info?.[k] == null || info[k] === "" ? SETTING_DEFAULTS[k] : info[k]);

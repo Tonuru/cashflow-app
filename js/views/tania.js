@@ -6,6 +6,8 @@ import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, donut, bars, sheet, toast, busy, fill } from "../ui.js";
 import { movimentoSheet, vociSheet, movRow } from "../forms.js";
 import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
+import { obiettiviCard, seduteCard, sogliaCard, tasseCard } from "./funzioni.js";
+import { semaforoLine } from "../semafori.js";
 
 const eduMonths = new Set();   // mesi in cui Tania ha acceso l'Educativa (solo finché l'app è aperta)
 const nextMonth = (y, m) => (m === 12 ? [y + 1, 1] : [y, m + 1]);
@@ -142,7 +144,8 @@ export function renderMese(root, rerender, view) {
   };
   const newMov = (tipo, categoria) => () => movimentoSheet({ tipo, data: defaultDate(view), categoria }, { onDone: rerender });
 
-  fill(root, top, hero, stats, budgetCard(y, m), scadenzeCard(rerender), fisseCard("personal", y, m, rerender),
+  fill(root, top, hero, stats, seduteCard(rerender), budgetCard(y, m), scadenzeCard(rerender),
+    fisseCard("personal", y, m, rerender),
     h("div.group-title", {}, "🧠 Libera professione"), pazCard, contiCard,
     section("sec-sedute", "Sedute", inMonth(M.isProfIncome), C.green, () => sedutaSheet(defaultDate(view), "", rerender)),
     section("sec-prof", "Spese professionali", inMonth(M.isProfCost), C.red, newMov(M.T.USCITA, M.CAT_SPESE_PROF), "−"),
@@ -191,6 +194,8 @@ export function sedutaSheet(data, paziente, rerender) {
   setFee();
   const err = h("div.form-err");
   const done = h("div.list");
+  const unpaidOn = D.feature("sedute_attive");
+  const fUnpaid = h("input", { type: "checkbox" });
   const add = async (close) => {
     const paz = fPaz.value.trim(), imp = M.parseAmount(fImp.value);
     if (!paz) { err.textContent = "Scrivi il paziente (nome o iniziali)."; return; }
@@ -198,7 +203,8 @@ export function sedutaSheet(data, paziente, rerender) {
     if (!fData.value) { err.textContent = "Scegli la data."; return; }
     err.textContent = "";
     await D.addMov("personal", { data: fData.value, tipo: M.T.ENTRATA, importo: imp, categoria: M.CAT_PROFESSIONE,
-      sottocategoria: paz, descrizione: "Seduta", metodo: "", note: "", origine: "iPhone" });
+      sottocategoria: paz, descrizione: "Seduta", metodo: "", note: "", origine: "iPhone",
+      ...(unpaidOn && fUnpaid.checked ? { incasso: "no" } : {}) });
     lastFee.set(paz, imp);
     done.append(h("div.done-row", {}, `✓ ${M.fmtDate(fData.value).slice(0, 5)} · ${paz} · ${M.fmtEur(imp)}`));
     toast("Seduta salvata ✓", "ok");
@@ -210,9 +216,10 @@ export function sedutaSheet(data, paziente, rerender) {
   const bSave = h("button.btn.primary", { type: "button" }, "Salva");
   bSave.onclick = () => busy(bSave, add(true));
   const names = [...lastFee.keys()].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-  fill(s.body,
+  fill(s.body, semaforoLine("personal"),
     h("label.field", {}, h("span", {}, "Paziente"), fPaz, h("datalist", { id: "dl-paz" }, names.map((n) => h("option", { value: n })))),
     h("div.grid2", {}, h("label.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
+    unpaidOn ? h("label.check", {}, fUnpaid, " Non ancora pagata (da incassare)") : null,
     err, done, h("div.row.gap.actions", {}, bMore, bSave));
   setTimeout(() => (paziente ? fImp : fPaz).focus(), 300);
 }
@@ -297,5 +304,6 @@ export function renderAnno(root, rerender, view, goMonth) {
       h("div.conto-v", {}, pct(ind[k]))))),
     h("div.muted.small", {}, "Come nel foglio Home del vecchio file. Si cambiano dal PC: Impostazioni → Tasse e contributi della libera professione."));
 
-  fill(root, top, hero, stats, table, chart, cat, indCard);
+  fill(root, top, hero, stats, sogliaCard(y), tasseCard(y, rerender), obiettiviCard("personal", rerender), table, chart, cat,
+    indCard);
 }

@@ -1,4 +1,5 @@
 // Spese comuni: saldo globale fisso in alto, poi il mese scelto (o tutto l'anno).
+import { chiudiMeseCard, obiettiviCard } from "./funzioni.js";
 import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, fill } from "../ui.js";
@@ -58,9 +59,9 @@ export function render(root, rerender) {
   const list = h("div.card", { "data-fold": "voci" }, h("div.card-title", {}, view.all ? `Voci di tutto il ${y}` : `Voci di ${M.MESI[m - 1].toLowerCase()} ${y}`),
     q, listBox);
 
-  fill(root, global, nav, monthCards,
+  fill(root, global, chiudiMeseCard(rerender), nav, monthCards,
     h("button.btn.primary.wide.big", { onclick: () => comuneSheet({ data: defaultDate() }, { onDone: rerender }) }, "＋ Aggiungi spesa comune"),
-    fisseCard("comune", y, m, rerender), list, helpCard(),
+    fisseCard("comune", y, m, rerender), obiettiviCard("comune", rerender), list, helpCard(),
     h("button.fab", { onclick: () => comuneSheet({ data: defaultDate() }, { onDone: rerender }), "aria-label": "Aggiungi spesa comune" }, "＋"));
 }
 

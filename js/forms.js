@@ -1,4 +1,5 @@
 // Finestre per aggiungere / modificare voci personali e comuni.
+import { semaforoLine } from "./semafori.js";
 import * as D from "./data.js";
 import * as M from "./model.js";
 import { h, sheet, toast, busy, confirmBox, C, fill } from "./ui.js";
@@ -125,7 +126,7 @@ export function movimentoSheet(row, { onDone } = {}) {
     actions.append(bMore, bSave);
   }
 
-  fill(s.body, pendingWarn(row),
+  fill(s.body, semaforoLine("personal"), pendingWarn(row),
     editing && row.origine === M.ORIGINE_ANNUALE ? null : seg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)),
     field("Categoria", fCat), field("Sottocategoria", fSub, dlSub),
@@ -270,7 +271,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   } else actions.append(bSave);
 
   const cm = D.years("comune").flatMap((y) => D.comuneMovs(y));
-  fill(s.body, pendingWarn(row), rimborso ? null : tipoSeg,
+  fill(s.body, semaforoLine("comune"), pendingWarn(row), rimborso ? null : tipoSeg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)), payLbl, rimbInfo, spesaOnly,
     field("Descrizione", fDesc, datalist("dl-cdesc", M.suggestions(cm, "descrizione"))), field("Note", fNote), err, actions);
   if (!editing && !rimborso) setTimeout(() => fImp.focus(), 300);

@@ -18,7 +18,8 @@ export const settings = Object.assign({ url: "", token: "", device: "", other: n
 export function saveSettings(patch = {}) { Object.assign(settings, patch); save(K_SETTINGS, settings); }
 export const isLinked = () => !!(settings.url && settings.token);
 
-let cache = load(K_CACHE, { copia: null, coda: [], errori: [], letto: null, altroCoda: [] });
+let cache = load(K_CACHE, { copia: null, coda: [], errori: [], letto: null, altroCoda: [], blocchi: null,
+  altroKinds: {} });
 let queue = load(K_QUEUE, []);           // operazioni del telefono non ancora confermate dal foglio
 let seen = new Set(load(K_SEEN, []));     // conflitti già letti
 const listeners = new Set();
@@ -77,7 +78,8 @@ export async function sync() {
   status.syncing = true;
   status.error = "";
   emit("status");
-  const before = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda]);
+  const before = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda,
+    cache.blocchi?.locks]);
   try {
     const unsent = queue.filter((op) => !op.sent);
     if (unsent.length) {
@@ -89,14 +91,25 @@ export async function sync() {
     const st = await call({ azione: "stato" });
     // spese comuni mandate dal telefono dell'altra persona e non ancora negli Excel: si vedono subito qui
     let altroCoda = cache.altroCoda || [];
+    let altroKinds = cache.altroKinds || {};
     status.otherError = "";
     if (otherLinked()) {
       try {
         const o = await call({ azione: "coda" }, settings.other);
         altroCoda = (o.coda || []).filter((op) => op.kind === "comune").map((op) => ({ ...op, _altro: true }));
+        altroKinds = {};
+        for (const op of o.coda || []) altroKinds[op.kind] = (altroKinds[op.kind] || 0) + 1;
       } catch (e) { status.otherError = e.message; }
-    } else altroCoda = [];
-    cache = { copia: st.copia || cache.copia, coda: st.coda || [], errori: st.errori || [], letto: M.nowIso(), altroCoda };
+    } else { altroCoda = []; altroKinds = {}; }
+    // semafori: stanno nel foglio «centrale» (quello con l'indirizzo più piccolo, come sui PC)
+    let blocchi = cache.blocchi || null;
+    try {
+      const central = otherLinked() && settings.other.url < settings.url ? settings.other : settings;
+      const r = await call({ azione: "riepilogo" }, central);
+      blocchi = r.blocchi ? { at: Date.now(), locks: r.blocchi, central: central === settings ? "mio" : "altro" } : null;
+    } catch { /* i semafori restano quelli dell'ultima volta */ }
+    cache = { copia: st.copia || cache.copia, coda: st.coda || [], errori: st.errori || [], letto: M.nowIso(), altroCoda,
+      blocchi, altroKinds };
     // inviate e non più in coda = il PC le ha già scritte (o rifiutate): non servono più qui
     const inQueue = new Set(cache.coda.map((o) => o.qid));
     queue = queue.filter((op) => !op.sent || inQueue.has(op.qid));
@@ -109,7 +122,8 @@ export async function sync() {
     status.offline = !!e.offline;
   } finally {
     status.syncing = false;
-    const after = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda]);
+    const after = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda,
+      cache.blocchi?.locks]);
     emit(after !== before ? "data" : "status");
   }
 }
@@ -201,16 +215,16 @@ export function indici(y) {
   const order = [y, ...ys.filter((x) => x < y).reverse(), ...ys.filter((x) => x > y)];
   for (const x of order) {
     const ind = fileData("personal", x)?.info?.indici;
-    if (ind && Object.keys(ind).length) return { ...M.INDICI_DEFAULT, ...ind };
+    if (ind && Object.keys(ind).length) return { ...M.INDICI_DEFAULT, ...ind, sedute_mese: settingOf("sedute_mese") };
   }
-  return { ...M.INDICI_DEFAULT };
+  return { ...M.INDICI_DEFAULT, sedute_mese: settingOf("sedute_mese") };
 }
 /** Tania ha tolto per sempre l'Educativa (Impostazioni sul PC). */
 export const eduRemoved = () => !!cache.copia?.educativa_tolta;
 /** Tutti i movimenti (tutti gli anni): servono al mese di gennaio, che usa il netto di dicembre. */
 export function taniaMonth(y, m) {
-  const movs = m === 1 ? allMovs(y - 1).concat(allMovs(y)) : allMovs(y);
-  return M.taniaMonth(movs, y, m, indici);
+  // anche l'anno prima: gennaio usa il netto di dicembre, e una seduta di dicembre può essere pagata a gennaio
+  return M.taniaMonth(allMovs(y - 1).concat(allMovs(y)), y, m, indici);
 }
 const latest = (kind, y) => fileData(kind, y) || fileData(kind, yearsOf(kind).slice(-1)[0]);
 // ---------------------------------------------------------------- spese fisse, scadenze, budget
@@ -249,6 +263,59 @@ export function monthSpese(y, m) {
   return isMichele() ? M.monthTotals(allMovs(y), y, m).uscite : taniaMonth(y, m).spese;
 }
 export const categorie = (y) => latest("personal", y)?.categorie || [];
+
+// ---------------------------------------------------------------- funzioni accese sul PC (Impostazioni)
+export const settingOf = (key, comune = false) => M.setting(comune ? comuneInfo() || {} : personalInfo(), key);
+export const feature = (key, comune = false) => !!settingOf(key, comune);
+// elenchi con la data: stanno nel file del loro anno (si prendono tutti); gli altri dal file più recente
+const DATATE = { personal: ["versamenti", "patrimonio", "tasse_versate"], comune: ["versamenti"] };
+/** Un elenco (obiettivi, versamenti, patrimonio, tasse…), con le voci mandate dal telefono già dentro. */
+export function lista(kind, key) {
+  let rows = DATATE[kind].includes(key) ? yearsOf(kind).flatMap((y) => fileData(kind, y)?.[key] || [])
+    : (latest(kind, new Date().getFullYear())?.[key] || []);
+  rows = rows.map((r) => ({ ...r }));
+  for (const op of pendingOps()) {
+    if (op.kind !== kind || op.lista !== key) continue;
+    if (op.op === "lst_set") {
+      const i = rows.findIndex((r) => r.id === op.row.id);
+      const r = { ...op.row, _pending: true };
+      if (i >= 0) rows[i] = r; else rows.push(r);
+    } else if (op.op === "lst_del") rows = rows.filter((r) => r.id !== op.id);
+  }
+  return rows;
+}
+export function addItem(kind, key, row) {
+  const full = { ...row, id: row.id || M.newId() };
+  enqueue({ op: "lst_set", kind, lista: key, year: full.data ? Number(full.data.slice(0, 4)) : latestYear(kind), row: full });
+  return full;
+}
+/** Sedute pagate (anche più di una dello stesso paziente): la data del pagamento va nella colonna «Incassata il». */
+export async function paySedute(rows, when) {
+  for (const r of rows) await editMov("personal", Number(r.data.slice(0, 4)), r.id, { incasso: when });
+}
+/** Semafori dei file: fogli miei, fogli dell'altra persona, conto comune. */
+export function semafori() {
+  const p = profile();
+  const me = p.utente || "io", other = p.altra_persona || "l'altra persona";
+  const b = cache.blocchi;
+  const now = Date.now();
+  const lock = (keys) => {
+    if (!b) return null;
+    for (const k of keys) { const x = b.locks?.[k]; if (x && Number(x.scade) > now) return { ...x, risorsa: k }; }
+    return null;
+  };
+  const ops = pendingOps();
+  return {
+    letto: b ? b.at : null,
+    righe: [
+      { key: "mio", nome: `Fogli di ${me}`, lock: lock([`personale:${me}`, `foglio:${me}`, "*"]),
+        coda: ops.filter((o) => o.kind === "personal" && !o._altro).length },
+      { key: "altro", nome: `Fogli di ${other}`, lock: lock([`personale:${other}`, `foglio:${other}`, "*"]),
+        coda: otherLinked() ? (cache.altroKinds?.personal || 0) : null },
+      { key: "comune", nome: "Foglio comune", lock: lock(["comune", "*"]), coda: ops.filter((o) => o.kind === "comune").length },
+    ],
+  };
+}
 export const metodi = (y) => latest("personal", y)?.metodi || M.DEFAULT_METODI;
 export const comuneCategorie = (y) => latest("comune", y)?.categorie || [];
 
