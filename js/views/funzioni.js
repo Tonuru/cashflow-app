@@ -24,6 +24,18 @@ function rimaneMap(start) {
 const modoText = (o) => o.modo === "fisso" ? `${M.fmtEur(o.valore)} al mese`
   : o.modo === "percentuale" ? `${Number(o.valore || 0).toFixed(0)}% di quello che rimane ogni mese` : "versamenti a mano";
 
+/** Gli obiettivi attivi con il loro stato (per la home e i Dettagli). */
+export function obiettiviStati(kind) {
+  const comune = kind === "comune";
+  if (comune && !D.comuneInfo()) return [];
+  if (!D.feature("obiettivi_attivi", comune)) return [];
+  const items = D.lista(kind, "obiettivi").filter((o) => o.attiva !== false);
+  const vers = D.lista(kind, "versamenti");
+  const starts = items.filter((o) => o.modo === "percentuale" && o.dal).map((o) => o.dal).sort();
+  const rim = starts.length && !comune ? rimaneMap(starts[0]) : {};
+  return items.map((o) => ({ o, st: M.obiettivoStato(o, vers, rim) }));
+}
+
 export function obiettiviCard(kind, rerender) {
   const comune = kind === "comune";
   if (comune && !D.comuneInfo()) return null;

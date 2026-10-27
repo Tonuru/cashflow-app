@@ -4,6 +4,8 @@ import { h, toast, fill, foldCards } from "./ui.js";
 import * as Mese from "./views/mese.js";
 import * as Anno from "./views/anno.js";
 import * as Comuni from "./views/comuni.js";
+import * as Home from "./views/home.js";
+import * as Dettagli from "./views/dettagli.js";
 import { wizard, settingsView, conflictsSheet } from "./views/setup.js";
 import { fmtDate } from "./model.js";
 import * as L from "./lock.js";
@@ -11,16 +13,18 @@ import { notices } from "./views/mensile.js";
 import { noticesFunzioni } from "./views/funzioni.js";
 import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.8.0";
+export const APP_VERSION = "1.9.0";
 
 const TABS = [
-  { id: "mese", label: "Mese", icon: "📅" },
-  { id: "anno", label: "Panoramica", icon: "📊" },
-  { id: "comuni", label: "Comuni", icon: "👥" },
+  { id: "home", label: "Home", icon: "🏠" },
+  { id: "dettagli", label: "Dettagli", icon: "☰" },
   { id: "impostazioni", label: "Impostazioni", icon: "⚙️" },
 ];
-let tab = "mese";
-try { tab = sessionStorage.getItem("cf.tab") || "mese"; } catch { /* */ }
+// pagine complete, aperte da «Dettagli» (o dalla home): in basso resta acceso «Dettagli»
+const SUB = new Set(["mese", "anno", "comuni", "eventi", "obiettivi", "scadenze", "cambiato"]);
+let tab = "home";
+try { tab = sessionStorage.getItem("cf.tab") || "home"; } catch { /* */ }
+if (!TABS.some((t) => t.id === tab) && !SUB.has(tab)) tab = "home";
 
 const app = document.getElementById("app");
 const main = h("main");
@@ -41,16 +45,20 @@ function goMonth(y, m) {
   setTab("mese");
 }
 
+const titleOf = (t) => TABS.find((x) => x.id === t)?.label || Dettagli.PAGES[t] || "";
+
 function drawHeader() {
   const s = D.status;
   const st = s.syncing ? h("span.sync.spin", {}, "⟳") : s.error ? h("span.sync.err", {}, "⚠︎") : h("span.sync", {}, "⟳");
-  const title = TABS.find((t) => t.id === tab)?.label || "";
+  const title = titleOf(tab);
   const pend = D.pendingOps().length;
   const cd = D.copyDate();
   const info = [cd ? `dati del PC del ${fmtDate(cd)}` : "dati del PC non ancora arrivati",
     pend ? `⏳ ${pend} non ancora negli Excel` : null, D.unsentCount() ? `${D.unsentCount()} da inviare` : null].filter(Boolean).join(" · ");
-  fill(header, h("div.top-title", {}, h("b", {}, "Cashflow"), h("span", {}, " · " + title),
-    h("div.top-info", { onclick: () => setTab("impostazioni") }, info, semaforiDots())),
+  const back = SUB.has(tab) ? h("button.top-back", { onclick: () => setTab("dettagli"), "aria-label": "Torna ai Dettagli" }, "‹") : null;
+  fill(header, back, h("div.top-title", {}, h("b", {}, SUB.has(tab) ? title : "Cashflow"),
+    h("span", {}, SUB.has(tab) ? "" : " · " + title),
+    h("div.top-info", { onclick: () => setTab("impostazioni") }, info, tab === "home" ? null : semaforiDots())),
   h("button.icon-btn", { onclick: () => D.sync(), "aria-label": "Aggiorna i dati" }, st));
   // conflitti: in evidenza finché non li leggi
   const errs = D.newErrors();
@@ -66,13 +74,18 @@ function drawHeader() {
 
 function render() {
   drawHeader();
-  fill(nav, ...TABS.map((t) => h("button" + (t.id === tab ? ".on" : ""), { onclick: () => setTab(t.id) },
+  const navOn = SUB.has(tab) ? "dettagli" : tab;
+  fill(nav, ...TABS.map((t) => h("button" + (t.id === navOn ? ".on" : ""), { onclick: () => setTab(t.id), "data-tab": t.id },
     h("span.ti", {}, t.icon), h("span.tl", {}, t.label))));
   const rerender = () => render();
   const y0 = window.scrollY;
-  if (tab === "mese") Mese.render(main, rerender);
+  main.className = tab === "home" ? "home" : "";
+  if (tab === "home") Home.render(main, rerender, setTab);
+  else if (tab === "dettagli") Dettagli.render(main, rerender, setTab);
+  else if (tab === "mese") Mese.render(main, rerender);
   else if (tab === "anno") Anno.render(main, rerender, goMonth);
   else if (tab === "comuni") Comuni.render(main, rerender);
+  else if (SUB.has(tab)) Dettagli.renderPage(tab, main, rerender, setTab);
   else settingsView(main, rerender, { version: APP_VERSION, checkUpdate, restartSetup });
   foldCards(main, tab);
   window.scrollTo(0, y0);
