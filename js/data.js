@@ -10,6 +10,8 @@ const K_SETTINGS = "cf.settings";
 const K_CACHE = "cf.copy";
 const K_QUEUE = "cf.queue";
 const K_SEEN = "cf.seenErrors";
+const K_FOTO = "cf.photos";
+const FOTO_CHUNK = 45000;              // caratteri per pezzo (una cella del foglio Google)
 
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k) || "null") ?? d; } catch { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* spazio pieno */ } }
@@ -22,6 +24,7 @@ let cache = load(K_CACHE, { copia: null, coda: [], errori: [], letto: null, altr
   altroKinds: {} });
 let queue = load(K_QUEUE, []);           // operazioni del telefono non ancora confermate dal foglio
 let seen = new Set(load(K_SEEN, []));     // conflitti già letti
+let photos = load(K_FOTO, []);           // foto degli scontrini ancora da mandare: {id, tipo, percorso, dati, inviate}
 const listeners = new Set();
 export const onChange = (fn) => listeners.add(fn);
 const emit = (what = "data") => listeners.forEach((fn) => fn(what));
@@ -88,6 +91,7 @@ export async function sync() {
       for (const op of queue) if (ok.has(op.qid)) op.sent = Date.now();
       save(K_QUEUE, queue);
     }
+    try { await sendPhotos(); status.photoError = ""; } catch (e) { status.photoError = e.message; }
     const st = await call({ azione: "stato" });
     // spese comuni mandate dal telefono dell'altra persona e non ancora negli Excel: si vedono subito qui
     let altroCoda = cache.altroCoda || [];
@@ -109,7 +113,7 @@ export async function sync() {
       blocchi = r.blocchi ? { at: Date.now(), locks: r.blocchi, central: central === settings ? "mio" : "altro" } : null;
     } catch { /* i semafori restano quelli dell'ultima volta */ }
     cache = { copia: st.copia || cache.copia, coda: st.coda || [], errori: st.errori || [], letto: M.nowIso(), altroCoda,
-      blocchi, altroKinds };
+      blocchi, altroKinds, versione: Number(st.versione || 0) };
     // inviate e non più in coda = il PC le ha già scritte (o rifiutate): non servono più qui
     const inQueue = new Set(cache.coda.map((o) => o.qid));
     queue = queue.filter((op) => !op.sent || inQueue.has(op.qid));
@@ -128,6 +132,46 @@ export async function sync() {
   }
 }
 const strip = (op) => { const o = { ...op }; delete o.sent; return o; };
+
+// ---------------------------------------------------------------- foto degli scontrini (script 4)
+export const scriptVersion = () => Number(cache.versione || 0);
+export const photosOk = () => !cache.versione || scriptVersion() >= 4;
+export const photosPending = () => photos.length;
+export const photoPendingFor = (percorso) => photos.find((p) => p.percorso === percorso) || null;
+
+/** Mette in coda la foto (base64 JPEG) da mandare al foglio: il PC la salva in OneDrive/…/Scontrini. */
+export function queuePhoto(tipo, percorso, dati) {
+  const id = "f" + M.newId() + M.newId();
+  photos.push({ id, tipo, percorso, dati, inviate: [] });
+  try { localStorage.setItem(K_FOTO, JSON.stringify(photos)); } catch {
+    photos.pop();
+    throw new Error("Spazio del telefono per le foto pieno: aspetta che partano quelle in attesa (serve la rete).");
+  }
+  emit("data");
+  sync();
+  return id;
+}
+
+async function sendPhotos() {
+  if (!photos.length || (cache.versione && scriptVersion() < 4)) return;
+  for (const f of [...photos]) {
+    const di = Math.max(1, Math.ceil(f.dati.length / FOTO_CHUNK));
+    for (let i = 0; i < di; i++) {
+      if (f.inviate.includes(i)) continue;
+      await call({ azione: "foto_metti", id: f.id, parte: i, di, tipo: f.tipo, percorso: f.percorso,
+        dati: f.dati.slice(i * FOTO_CHUNK, (i + 1) * FOTO_CHUNK) });
+      f.inviate.push(i);
+      save(K_FOTO, photos);
+    }
+    photos = photos.filter((x) => x.id !== f.id);
+    save(K_FOTO, photos);
+  }
+}
+
+/** Tag già usati (miei e del conto comune). */
+export function tags() {
+  return M.tagSuggestions(allMovsEveryYear(), years("comune").flatMap((y) => comuneMovs(y)));
+}
 
 // ---------------------------------------------------------------- conflitti e voci rifiutate
 export function newErrors() { return (cache.errori || []).filter((e) => !seen.has(e.qid)); }
@@ -378,5 +422,5 @@ export async function linkOther(code) {
 export function unlinkOther() { saveSettings({ other: null }); cache.altroCoda = []; save(K_CACHE, cache); emit("data"); }
 
 export function resetAll() {
-  for (const k of [K_SETTINGS, K_CACHE, K_QUEUE, K_SEEN]) localStorage.removeItem(k);
+  for (const k of [K_SETTINGS, K_CACHE, K_QUEUE, K_SEEN, K_FOTO]) localStorage.removeItem(k);
 }

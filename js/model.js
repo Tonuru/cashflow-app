@@ -303,7 +303,8 @@ export function comunePersonalRows(movs, me, pa, pb) {
     }
     out.push({ id: `com:${src.id}`, data: when, tipo: T.USCITA, importo: pyRound2(it.amount),
       categoria: prest ? CAT_PRESTITI : CAT_SPESE_COMUNI, sottocategoria: src.categoria || "",
-      descrizione: src.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE });
+      descrizione: src.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE,
+      etichetta: src.etichetta || "", allegato: src.allegato || "" });
   };
   const pay = (person, amount, when) => {
     for (const it of debts[person]) {
@@ -823,3 +824,30 @@ export const SETTING_DEFAULTS = { obiettivi_attivi: false, patrimonio_attivo: tr
   soglia_categorie: ["Libera professione"], sedute_attive: true, sedute_mese: "pagamento", sedute_giorni: 30,
   dichiarazione_attiva: true, chiudi_mese_attivo: true };
 export const setting = (info, k) => (info?.[k] == null || info[k] === "" ? SETTING_DEFAULTS[k] : info[k]);
+
+// ---------------------------------------------------------------- etichette (eventi) e scontrini
+export const normTag = (t) => String(t || "").replace(/\s+/g, " ").trim();
+/** Etichette già usate, le più recenti per prime (come cashflow/core/eventi.py: suggerimenti). */
+export function tagSuggestions(...lists) {
+  const spell = new Map(), last = new Map();
+  for (const movs of lists) for (const m of movs || []) {
+    const t = normTag(m.etichetta);
+    if (!t) continue;
+    const k = t.toLowerCase();
+    const s = spell.get(k) || new Map();
+    s.set(t, (s.get(t) || 0) + 1);
+    spell.set(k, s);
+    const d = m.data || "";
+    if (!last.has(k) || d > last.get(k)) last.set(k, d);
+  }
+  return [...spell.keys()].sort((a, b) => (last.get(b) || "").localeCompare(last.get(a) || ""))
+    .map((k) => [...spell.get(k).entries()].sort((a, b) => b[1] - a[1])[0][0]);
+}
+const slug = (t, n = 28) => (String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/[^\w-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, n).replace(/_+$/, "")) || "voce";
+/** Percorso dello scontrino nella cartella dei dati (come cashflow/core/scontrini.py: rel_path). */
+export function receiptPath(dataIso, descrizione) {
+  const d = /^\d{4}-\d{2}-\d{2}/.test(dataIso || "") ? dataIso.slice(0, 10) : todayIso();
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(3)), (b) => b.toString(16).padStart(2, "0")).join("");
+  return `Scontrini/${d.slice(0, 4)}/${d}_${slug(descrizione)}_${hex}.jpg`;
+}

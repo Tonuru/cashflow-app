@@ -33,6 +33,87 @@ function segmented(options, value, onChange) {
 }
 const errBox = () => h("div.form-err");
 
+/** Etichetta dell'evento (viaggio, trasloco…) con le etichette già usate. */
+function tagField(row, id) {
+  const input = h("input", { type: "text", list: id, autocomplete: "off", value: row.etichetta || "",
+    placeholder: "facoltativa, es. Viaggio Lisbona" });
+  return { input, el: field("Etichetta (evento)", input, datalist(id, D.tags())) };
+}
+
+/** Foto dello scontrino: si rimpicciolisce sul telefono e parte verso il PC, che la salva su OneDrive. */
+function photoField(row) {
+  let picked = null;                // base64 JPEG già rimpicciolita
+  let removed = false;
+  const file = h("input", { type: "file", accept: "image/*", style: { display: "none" } });
+  const preview = h("div.photo-prev");
+  const btn = h("button.btn", { type: "button" }, "📷 Foto dello scontrino");
+  const del = h("button.btn.small", { type: "button", style: { display: "none" } }, "Togli");
+  const note = h("div.small.muted");
+  const draw = () => {
+    const has = picked || (row.allegato && !removed);
+    del.style.display = has ? "" : "none";
+    btn.textContent = has ? "📷 Cambia foto" : "📷 Foto dello scontrino";
+    fill(preview, picked ? h("img", { src: "data:image/jpeg;base64," + picked, alt: "Scontrino" }) : null);
+    note.textContent = picked ? "La foto parte con la voce: il PC la salva nella cartella Scontrini su OneDrive."
+      : row.allegato && !removed ? (D.photoPendingFor(row.allegato) ? "📎 Foto in viaggio verso il PC…"
+        : "📎 Scontrino allegato (si apre dal PC)") : "";
+  };
+  btn.onclick = () => {
+    if (!D.photosOk()) { toast("Per le foto serve lo script nuovo nel foglio Google: aggiornalo dal PC (Impostazioni → App per iPhone).", "error"); return; }
+    file.click();
+  };
+  del.onclick = () => { picked = null; removed = true; draw(); };
+  file.onchange = async () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    try {
+      btn.disabled = true;
+      btn.textContent = "Preparo la foto…";
+      picked = await shrinkPhoto(f);
+      removed = false;
+    } catch (e) { toast("Non riesco a leggere la foto: " + e.message, "error"); }
+    btn.disabled = false;
+    file.value = "";
+    draw();
+  };
+  draw();
+  return {
+    el: h("div.field.photo", {}, h("span", {}, "Scontrino"), h("div.row.gap", {}, btn, del), preview, note, file),
+    /** {allegato} da scrivere nella voce; la foto va in coda al salvataggio (dopo la voce). */
+    value(dataIso, descr) {
+      if (picked) return { allegato: M.receiptPath(dataIso, descr), _foto: picked };
+      if (removed) return { allegato: "" };
+      return {};
+    },
+  };
+}
+
+/** JPEG al massimo 1600 px sul lato lungo (circa 150-300 KB), in base64 senza «data:». */
+async function shrinkPhoto(f, max = 1600, quality = 0.72) {
+  const url = URL.createObjectURL(f);
+  try {
+    const img = await new Promise((ok, ko) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => ko(new Error("formato non supportato"));
+      i.src = url;
+    });
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", quality).split(",")[1];
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/** Dopo aver salvato la voce: la foto in coda verso il foglio Google. */
+function sendPhoto(kind, v) {
+  if (!v._foto) return;
+  try { D.queuePhoto(kind, v.allegato, v._foto); } catch (e) { toast(e.message, "error"); }
+}
+const noPhoto = (v) => { const o = { ...v }; delete o._foto; return o; };
+
 /** Voce personale: nuova (row = {tipo, data}) o da modificare (row con id). */
 export function movimentoSheet(row, { onDone } = {}) {
   const editing = !!row.id;
@@ -52,6 +133,8 @@ export function movimentoSheet(row, { onDone } = {}) {
   const fMet = h("select", {}, h("option", { value: "" }, "—"), D.metodi(year).map((m) => h("option", { value: m }, m)));
   fMet.value = row.metodo || "";
   const fNote = h("input", { type: "text", value: row.note || "", placeholder: "facoltative" });
+  const fTag = tagField(row, "dl-tag");
+  const fFoto = photoField(row);
   const err = errBox();
 
   const fillCats = () => {
@@ -84,7 +167,8 @@ export function movimentoSheet(row, { onDone } = {}) {
     if (imp < 0) return "L'importo va scritto positivo.";
     if (!fCat.value) return "Scegli la categoria.";
     return { data: fData.value, tipo, importo: imp, categoria: fCat.value, sottocategoria: fSub.value.trim(),
-      descrizione: fDesc.value.trim(), metodo: fMet.value, note: fNote.value.trim() };
+      descrizione: fDesc.value.trim(), metodo: fMet.value, note: fNote.value.trim(),
+      etichetta: M.normTag(fTag.input.value), ...fFoto.value(fData.value, fDesc.value.trim()) };
   };
 
   const doSave = async (again) => {
@@ -94,13 +178,14 @@ export function movimentoSheet(row, { onDone } = {}) {
     try {
       if (editing) {
         const changes = {};
-        for (const [k, x] of Object.entries(v)) if ((row[k] ?? "") !== x) changes[k] = x;
+        for (const [k, x] of Object.entries(noPhoto(v))) if ((row[k] ?? "") !== x) changes[k] = x;
         if (Object.keys(changes).length) await D.editMov("personal", year, row.id, changes);
         toast("Modifica salvata ✓", "ok");
       } else {
-        await D.addMov("personal", { ...v, origine: "iPhone" });
+        await D.addMov("personal", { ...noPhoto(v), origine: "iPhone" });
         toast("Salvato ✓", "ok");
       }
+      sendPhoto("personal", v);
       onDone?.();
       if (again) {
         fImp.value = ""; fDesc.value = ""; fNote.value = ""; fSub.value = "";
@@ -132,6 +217,7 @@ export function movimentoSheet(row, { onDone } = {}) {
     field("Categoria", fCat), field("Sottocategoria", fSub, dlSub),
     field("Descrizione", fDesc, datalist("dl-desc", M.suggestions(allMovs.filter((m) => m.tipo === tipo), "descrizione"))),
     h("div.grid2", {}, field("Metodo", fMet), field("Note", fNote)),
+    fTag.el, fFoto.el,
     err, actions);
   if (!editing) setTimeout(() => fImp.focus(), 300);
 }
@@ -153,6 +239,8 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   fCat.value = row.categoria || "";
   const fDesc = h("input", { type: "text", list: "dl-cdesc", autocomplete: "off", value: row.descrizione || (rimborso ? "Rimborso" : "") });
   const fNote = h("input", { type: "text", value: row.note || "", placeholder: "facoltative" });
+  const fTag = tagField(row, "dl-ctag");
+  const fFoto = photoField(row);
   const payer = segmented([{ value: pa, label: pa }, { value: pb, label: pb }],
     row.pagato_da || (rimborso ? rimborso[0] : me === pb ? pb : pa), () => drawRimb());
   // divisione: "Predefinita" selezionata di base
@@ -223,7 +311,8 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
     if (!fData.value) return "Scegli la data.";
     if (imp == null || imp <= 0) return "Scrivi l'importo (es. 12,50).";
     const out = { data: fData.value, tipo, importo: imp, categoria: tipo === M.T.RIMBORSO ? "" : fCat.value,
-      descrizione: fDesc.value.trim(), pagato_da: payer.get(), note: fNote.value.trim() };
+      descrizione: fDesc.value.trim(), pagato_da: payer.get(), note: fNote.value.trim(),
+      etichetta: M.normTag(fTag.input.value), ...fFoto.value(fData.value, fDesc.value.trim()) };
     if (tipo === M.T.SPESA) {
       const d = divs.find((x) => x.value === divSel.value);
       const qa = d.q ?? Number(String(fQa.value).replace(",", "."));
@@ -245,9 +334,10 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
     try {
       if (editing) {
         const changes = {};
-        for (const [k, x] of Object.entries(v)) if ((row[k] ?? "") !== x) changes[k] = x;
+        for (const [k, x] of Object.entries(noPhoto(v))) if ((row[k] ?? "") !== x) changes[k] = x;
         if (Object.keys(changes).length) await D.editMov("comune", year, row.id, changes);
-      } else await D.addMov("comune", v);
+      } else await D.addMov("comune", noPhoto(v));
+      sendPhoto("comune", v);
       toast("Salvato ✓", "ok");
       onDone?.();
       if (again) { fImp.value = ""; fDesc.value = ""; fNote.value = ""; fImp.focus(); } else s.close();
@@ -273,7 +363,8 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const cm = D.years("comune").flatMap((y) => D.comuneMovs(y));
   fill(s.body, semaforoLine("comune"), pendingWarn(row), rimborso ? null : tipoSeg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)), payLbl, rimbInfo, spesaOnly,
-    field("Descrizione", fDesc, datalist("dl-cdesc", M.suggestions(cm, "descrizione"))), field("Note", fNote), err, actions);
+    field("Descrizione", fDesc, datalist("dl-cdesc", M.suggestions(cm, "descrizione"))), field("Note", fNote),
+    fTag.el, fFoto.el, err, actions);
   if (!editing && !rimborso) setTimeout(() => fImp.focus(), 300);
 }
 
@@ -293,7 +384,8 @@ export function movRow(m, { onTap, sign = "−", showCat = true } = {}) {
   const cat = [m.categoria, m.sottocategoria].filter(Boolean).join(" · ");
   return h("button.item" + (comune ? ".comune" : "") + (m._pending ? ".pending" : ""),
     { type: "button", onclick: () => onTap?.(m) },
-    h("div.item-main", {}, h("div.item-title", {}, m.descrizione || cat || "—"),
+    h("div.item-main", {}, h("div.item-title", {}, (m.descrizione || cat || "—") + (m.allegato ? " 📎" : "")
+      + (m.etichetta ? ` · 🏷 ${m.etichetta}` : "")),
       h("div.item-sub", {}, [M.fmtDate(m.data).slice(0, 5), showCat ? cat : "", comune ? "spesa comune" : m.metodo]
         .filter(Boolean).join(" · "))),
     h("div.item-amt", { style: { color } }, (neg ? "−" : "+") + M.fmtEur(Math.abs(v))));

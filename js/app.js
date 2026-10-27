@@ -11,7 +11,7 @@ import { notices } from "./views/mensile.js";
 import { noticesFunzioni } from "./views/funzioni.js";
 import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.7.0";
+export const APP_VERSION = "1.8.0";
 
 const TABS = [
   { id: "mese", label: "Mese", icon: "📅" },
