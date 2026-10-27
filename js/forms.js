@@ -89,7 +89,7 @@ function photoField(row) {
 }
 
 /** JPEG al massimo 1600 px sul lato lungo (circa 150-300 KB), in base64 senza «data:». */
-async function shrinkPhoto(f, max = 1600, quality = 0.72) {
+export async function shrinkPhoto(f, max = 1600, quality = 0.72) {
   const url = URL.createObjectURL(f);
   try {
     const img = await new Promise((ok, ko) => {

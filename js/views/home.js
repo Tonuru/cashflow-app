@@ -3,7 +3,7 @@
 import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, fill } from "../ui.js";
-import { movimentoSheet, comuneSheet } from "../forms.js";
+import { quickAdd } from "../quick.js";
 import { semaforiDots } from "../semafori.js";
 import * as Mese from "./mese.js";
 import { obiettiviStati } from "./funzioni.js";
@@ -117,10 +117,9 @@ export function render(root, rerender, go) {
       h("span", {}, `${M.fmtEur(obs[0].st.risparmiato).replace(",00 €", "")} di ${M.fmtEur(obs[0].st.obiettivo).replace(",00 €", " €")} · ${obs[0].st.pct.toFixed(0)}%`)),
     bar(obs[0].st.pct, "#5BF0A8", "#232B37", 7)) : null;
 
-  const today = M.todayIso();
   const add = h("div.h-add", {},
-    h("button.h-add-me", { onclick: () => movimentoSheet({ tipo: M.T.USCITA, data: today }, { onDone: rerender }) }, "＋ Spesa mia"),
-    D.comuneInfo() ? h("button.h-add-com", { onclick: () => comuneSheet({ data: today }, { onDone: rerender }) }, "＋ Spesa comune") : null);
+    h("button.h-add-me", { onclick: () => quickAdd("personal", { onDone: rerender }) }, "＋ Spesa mia"),
+    D.comuneInfo() ? h("button.h-add-com", { onclick: () => quickAdd("comune", { onDone: rerender }) }, "＋ Spesa comune") : null);
 
   fill(root, hello, aur, tiles, lastCard, goal, add);
 }
