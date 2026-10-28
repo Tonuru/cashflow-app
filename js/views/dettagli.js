@@ -8,13 +8,14 @@ import * as Mese from "./mese.js";
 import { comuneSummary } from "./home.js";
 import { obiettiviCard, obiettiviStati } from "./funzioni.js";
 import { scadenzeCard } from "./mensile.js";
+import * as Inv from "./investimenti.js";
 
 const ymNow = () => { const t = M.todayIso(); return [Number(t.slice(0, 4)), Number(t.slice(5, 7))]; };
 const prevYm = () => { const [y, m] = ymNow(); return m === 1 ? [y - 1, 12] : [y, m - 1]; };
 
 export const PAGES = {
   mese: "Mese per mese", anno: "Panoramica", comuni: "Conto comune", eventi: "Eventi", obiettivi: "Obiettivi",
-  scadenze: "Scadenze", cambiato: "Cosa è cambiato",
+  scadenze: "Scadenze", cambiato: "Cosa è cambiato", investimenti: "Investimenti",
 };
 
 function row(id, icon, bg, title, sub, val, color, go) {
@@ -58,7 +59,9 @@ export function render(root, rerender, go) {
         M.fmtEur(yr, true).replace(",00 €", " €"), yr >= 0 ? C.green : C.red, go),
       row("cambiato", "🔎", "#3A2E14", "Cosa è cambiato",
         nCam ? `${nCam} ${nCam === 1 ? "novità" : "novità"} a ${M.MESI[pm - 1].toLowerCase()}` : `niente di particolare a ${M.MESI[pm - 1].toLowerCase()}`,
-        null, null, go)),
+        null, null, go),
+      Inv.available() ? (() => { const s = Inv.summary(); return row("investimenti", "📈", "#16352A", "Investimenti",
+        s.sub, s.text, C.green, go); })() : null),
     cs ? group(other ? `INSIEME A ${other.toUpperCase()}` : "CONTO COMUNE",
       row("comuni", "🤝", "#2A1E44", "Conto comune", "voci, rimborsi, chiudi il mese", cs.text, cs.color, go)) : null,
     group("ALTRO",
@@ -80,6 +83,7 @@ export function renderPage(id, root, rerender, go) {
   if (id === "obiettivi") return obiettivi(root, rerender);
   if (id === "scadenze") return scadenze(root, rerender);
   if (id === "cambiato") return cambiato(root, rerender);
+  if (id === "investimenti") return Inv.render(root, rerender);
   return null;
 }
 

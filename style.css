@@ -427,3 +427,27 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .qa-new-no { border-radius: 10px; background: #1A212C; border: 1px solid #2A3442; font-weight: 600; color: var(--muted); }
 .qa.com .qa-new .qa-done { background: #8A4FE0; }
 .qa.com .qa-sub.on, .qa.com .qa-sub.none.on { background: #2A1E44; border-color: #8A4FE0; color: #D9C6FF; }
+/* Investimenti (solo da guardare) */
+.iv-head .iv-file { font-size: 12px; color: var(--muted); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iv-big { text-align: center; background: linear-gradient(160deg, #16352A, #1A2640 70%); }
+.iv-tot-t { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: #9FE3C0; }
+.iv-tot { font-size: 30px; font-weight: 800; letter-spacing: -.5px; color: #7CF3B9; }
+.iv-stats { grid-template-columns: repeat(2, 1fr); margin-top: 10px; }
+.iv-sum { font-size: 13px; margin: 2px 0 8px; line-height: 1.45; }
+.iv-list { display: flex; flex-direction: column; }
+.iv-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+.iv-row:first-child { border-top: 0; }
+.iv-l { min-width: 0; } .iv-l b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.iv-r { text-align: right; white-space: nowrap; }
+.iv-box { background: var(--input); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.iv-kv { display: flex; justify-content: space-between; font-size: 13.5px; padding: 3px 0; } .iv-kv span { color: var(--muted); }
+.iv-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; -webkit-overflow-scrolling: touch; }
+.iv-tab { flex-shrink: 0; padding: 7px 12px; border-radius: 16px; background: var(--input); color: var(--muted); font-size: 13px; font-weight: 600; }
+.iv-tab.on { background: #1E4D36; color: #7CF3B9; }
+.iv-sheet { max-height: 60vh; overflow: auto; }
+.iv-grid { font-size: 12px; }
+.iv-grid th { position: sticky; top: 0; background: var(--header); color: var(--muted); font-weight: 600; padding: 4px 8px; z-index: 1; }
+.iv-grid td { padding: 4px 8px; white-space: nowrap; border-bottom: 1px solid var(--border); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.iv-grid td.n { text-align: right; } .iv-grid td.b { font-weight: 700; } .iv-grid td.neg { color: var(--red, #FF6B6B); }
+.iv-grid .iv-rn { position: sticky; left: 0; background: var(--header); color: var(--muted); text-align: right; z-index: 2; }
+a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
