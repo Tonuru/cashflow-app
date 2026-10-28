@@ -1,1 +1,1 @@
-{ "version": "1.10.0", "notes": "Aggiunta veloce: tastierino sempre a vista, le tue solite in un tocco, categorie a bottoni, altre informazioni in una riga sola; spesa comune con chi ha pagato e divisione a bottoni." }
+{ "version": "1.11.0", "notes": "Aggiunta veloce rifatta: tutto a vista, senza tastierino. Importo al centro, descrizione sempre presente, tutte le categorie in una griglia, data/specifica/metodo/etichetta/scontrino in caselle; spesa comune con chi ha pagato e come si divide, con le due parti in euro." }
