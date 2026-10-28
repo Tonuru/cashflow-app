@@ -402,3 +402,5 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .qa-save.com { background: linear-gradient(180deg, #B27BFF, #8A4FE0); }
 .qa .form-err:empty { display: none; }
 .qa .sem-line { flex-shrink: 0; justify-content: center; margin: 0; }
+.qa-meaning { text-align: center; font-size: 12.5px; color: #9AA6B4; margin-top: -2px; }
+.qa-tipo .qa-seg2 button.on { background: #5B3FA8; }

@@ -51,7 +51,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   // quota di persona_a per ogni scelta di divisione
   const myA = me === info?.persona_a;
   const st = { amount: "", cat: "", catAuto: false, descr: "", data: M.todayIso(), sub: "", metodo: "", note: "", tag: "",
-    foto: null, payer: me, div: qdef === 50 ? "meta" : "def", custom: 50, editing: null };
+    foto: null, payer: me, ctipo: "spesa", div: qdef === 50 ? "meta" : "def", custom: 50, editing: null };
 
   const wrap = h("div.qa-wrap");
   const panel = h("div.qa");
@@ -124,13 +124,45 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   const err = h("div.form-err");
   function updateLive() {
     const v = value();
-    bSave.textContent = kind === "comune" ? (v ? `Salva spesa comune · ${M.fmtEur(v)}` : "Salva spesa comune")
-      : (v ? `Salva · ${M.fmtEur(v)}` : "Salva");
+    const what = { spesa: "Salva spesa comune", prestito: "Salva prestito", rimborso: "Salva rimborso" }[st.ctipo];
+    bSave.textContent = kind === "comune" ? (v ? `${what} · ${M.fmtEur(v)}` : what) : (v ? `Salva · ${M.fmtEur(v)}` : "Salva");
     if (kind === "comune") {
-      const s = shares();
-      fill(share, v ? ["la tua parte ", h("b", {}, M.fmtEur(s.mine))] : "scrivi l'importo");
+      const to = st.payer === me ? other : me;
+      const who = (x) => (x === me ? "tu" : x);
+      if (st.ctipo === "spesa") {
+        const s = shares();
+        fill(share, v ? ["la tua parte ", h("b", {}, M.fmtEur(s.mine))] : "scrivi l'importo");
+      } else if (st.ctipo === "prestito") {
+        fill(share, v ? [h("b", {}, cap(who(st.payer))), ` ${st.payer === me ? "presti" : "presta"} `, h("b", {}, M.fmtEur(v)),
+          ` a ${to === me ? "te" : to}`] : "scrivi l'importo");
+      } else {
+        fill(share, v ? [h("b", {}, cap(who(st.payer))), ` ${st.payer === me ? "dai" : "dà"} `, h("b", {}, M.fmtEur(v)),
+          ` a ${to === me ? "te" : to}`] : "scrivi l'importo");
+      }
       if (divNote) fill(divNote, divText());
+      if (rimbNote) fill(rimbNote, rimbText());
     }
+  }
+
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const saldo = () => M.comuneSaldo(D.comuneMovs(year), info.persona_a, info.persona_b);
+  let rimbNote = null;
+  /** Rimborso: come stanno i conti adesso e come restano dopo. */
+  function rimbText() {
+    const s = saldo();
+    const v = value();
+    const now = s.debitore ? `Adesso ${s.debitore === me ? "tu devi" : s.debitore + " deve"} ${M.fmtEur(s.importo)} a ${s.creditore === me ? "te" : s.creditore}`
+      : "Adesso siete in pari";
+    let after = "";
+    if (v) {
+      if (s.debitore === st.payer) {
+        const rest = M.pyRound2(s.importo - v);
+        after = Math.abs(rest) < 0.005 ? "dopo siete in pari ✅" : rest > 0 ? `dopo restano ${M.fmtEur(rest)} da dare`
+          : `attenzione: è più del dovuto, dopo il debito si inverte (${M.fmtEur(-rest)})`;
+      } else if (s.debitore) after = "attenzione: chi deve i soldi è l'altra persona, forse va invertito «Chi dà i soldi»";
+      else after = `dopo ${st.payer === me ? (other + " ti dovrà") : "dovrai"} ${M.fmtEur(v)}`;
+    }
+    return [h("b", {}, now), after ? h("span", {}, ` · ${after}`) : null];
   }
 
   // ---------------------------------------------------------------- salvataggio
@@ -138,15 +170,22 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     const imp = value();
     if (!imp) { err.textContent = "Scrivi l'importo."; amountIn.focus(); return; }
     if (!st.cat && kind === "personal") { err.textContent = "Scegli la categoria."; return; }
+    if (kind === "comune" && st.ctipo === "spesa" && !st.cat) { err.textContent = "Scegli la categoria."; return; }
     const allegato = st.foto ? M.receiptPath(st.data, st.descr) : "";
     if (kind === "personal") {
       await D.addMov("personal", { data: st.data, tipo: M.T.USCITA, importo: imp, categoria: st.cat, sottocategoria: st.sub.trim(),
         descrizione: st.descr.trim(), metodo: st.metodo, note: st.note.trim(), etichetta: M.normTag(st.tag),
         ...(allegato ? { allegato } : {}), origine: "iPhone" });
     } else {
-      const qa = quotaA();
-      await D.addMov("comune", { data: st.data, tipo: M.T.SPESA, importo: imp, categoria: st.cat, descrizione: st.descr.trim(),
-        pagato_da: st.payer, quota_a: qa, quota_b: M.pyRound2(100 - qa), note: st.note.trim(), etichetta: M.normTag(st.tag),
+      let tipo = M.T.SPESA, qa = quotaA(), qb = M.pyRound2(100 - qa), cat = st.cat;
+      if (st.ctipo === "prestito") {
+        // il prestito è tutto di chi lo riceve
+        tipo = M.T_PRESTITO;
+        const toA = st.payer !== info.persona_a;
+        qa = toA ? 100 : 0; qb = toA ? 0 : 100;
+      } else if (st.ctipo === "rimborso") { tipo = M.T.RIMBORSO; qa = ""; qb = ""; cat = ""; }
+      await D.addMov("comune", { data: st.data, tipo, importo: imp, categoria: cat, descrizione: st.descr.trim() || (st.ctipo === "rimborso" ? "Rimborso" : ""),
+        pagato_da: st.payer, quota_a: qa, quota_b: qb, note: st.note.trim(), etichetta: M.normTag(st.tag),
         ...(allegato ? { allegato } : {}) });
     }
     if (st.foto) { try { D.queuePhoto(kind, allegato, st.foto); } catch (e) { toast(e.message, "error"); } }
@@ -202,21 +241,43 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
 
     let comBox = null;
     divNote = null;
+    rimbNote = null;
     if (com) {
       const segRow = (cls, lbl, opts, cur, pick) => h("div.qa-segrow." + cls, {}, h("div.qa-lbl", {}, lbl),
         h("div.qa-seg2", {}, opts.map((o) => h("button" + (o.id === cur ? ".on" : ""), { type: "button", onclick: () => pick(o.id) }, o.label))));
-      divNote = h("div.qa-divnote");
+      const TIPI = [{ id: "spesa", label: "Spesa" }, { id: "prestito", label: "Prestito" }, { id: "rimborso", label: "Rimborso" }];
+      const MEANING = {
+        spesa: "una spesa di tutti e due, divisa come scegli qui sotto",
+        prestito: `soldi anticipati all'altro: li restituirà, non è una spesa comune`,
+        rimborso: "soldi dati all'altro per pareggiare i conti",
+      };
+      const pickTipo = (id) => {
+        st.ctipo = id;
+        if (id === "rimborso") {
+          const s = saldo();
+          if (!st.amount && s.debitore) { st.amount = M.fmtEur(s.importo).replace(" €", "").replace(/\./g, ""); st.payer = s.debitore; }
+          if (!st.descr) st.descr = "Rimborso";
+        } else if (st.descr === "Rimborso") st.descr = "";
+        draw();
+      };
+      const payLbl = { spesa: "HA PAGATO", prestito: "CHI PRESTA", rimborso: "CHI DÀ I SOLDI" }[st.ctipo];
+      divNote = st.ctipo === "spesa" ? h("div.qa-divnote") : null;
+      rimbNote = st.ctipo === "rimborso" ? h("div.qa-divnote") : null;
       comBox = h("div.qa-com", {},
-        segRow("qa-payer", "HA PAGATO", [{ id: me, label: "Io" }, { id: other, label: other }], st.payer, (id) => { st.payer = id; draw(); }),
-        segRow("qa-div", "COME SI DIVIDE", divOptions(), st.div, (id) => { st.div = id; if (id === "altro") st.editing = "custom"; draw(); }),
-        divNote);
+        segRow("qa-tipo", "COS'È", TIPI, st.ctipo, pickTipo),
+        h("div.qa-meaning", {}, MEANING[st.ctipo]),
+        segRow("qa-payer", payLbl, [{ id: me, label: "Io" }, { id: other, label: other }], st.payer, (id) => { st.payer = id; draw(); }),
+        st.ctipo === "spesa" ? segRow("qa-div", "COME SI DIVIDE", divOptions(), st.div, (id) => { st.div = id; if (id === "altro") st.editing = "custom"; draw(); }) : null,
+        divNote, rimbNote);
     }
 
     // tutte le categorie, in una griglia
     const order = catOrder(kind, cats());
     if (st.cat && !order.includes(st.cat)) order.unshift(st.cat);
-    const grid = h("div.qa-cats", {},
-      h("div.qa-lbl.center", {}, "CATEGORIA", st.cat && st.catAuto ? h("span.qa-sug", {}, " · suggerita dalla descrizione") : ""),
+    const rimb = com && st.ctipo === "rimborso";
+    const grid = rimb ? h("div.qa-cats") : h("div.qa-cats", {},
+      h("div.qa-lbl.center", {}, com && st.ctipo === "prestito" ? "PER COSA (facoltativo)" : "CATEGORIA",
+        st.cat && st.catAuto ? h("span.qa-sug", {}, " · suggerita dalla descrizione") : ""),
       h("div.qa-grid", {}, order.map((c) => h("button.qa-cat" + (st.cat === c ? ".on" : ""), { type: "button",
         onclick: () => { st.cat = st.cat === c ? "" : c; st.catAuto = false; draw(); } },
       h("span.qa-ci", {}, catIcon(c)), h("span.qa-cn", {}, c)))));
