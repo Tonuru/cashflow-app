@@ -176,6 +176,7 @@ export function movimentoSheet(row, { onDone } = {}) {
     if (typeof v === "string") { err.textContent = v; return; }
     err.textContent = "";
     try {
+      D.rememberSub("personal", Number(v.data.slice(0, 4)), v.tipo, v.categoria, v.sottocategoria);
       if (editing) {
         const changes = {};
         for (const [k, x] of Object.entries(noPhoto(v))) if ((row[k] ?? "") !== x) changes[k] = x;
@@ -237,6 +238,14 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const fCat = h("select", {}, h("option", { value: "" }, "—"),
     D.comuneCategorie(year).map((c) => h("option", { value: c.categoria }, c.categoria)));
   fCat.value = row.categoria || "";
+  const fSub = h("input", { type: "text", list: "dl-csub", autocomplete: "off", value: row.sottocategoria || "",
+    placeholder: "facoltativa, es. Condominio" });
+  const dlSub = h("datalist", { id: "dl-csub" });
+  const comHist = D.years("comune").flatMap((y) => D.comuneMovs(y));
+  const fillSubs = () => fill(dlSub, ...M.subcategories(D.comuneCategorie(year), comHist, M.T.SPESA, fCat.value)
+    .map((v) => h("option", { value: v })));
+  fCat.addEventListener("change", fillSubs);
+  fillSubs();
   const fDesc = h("input", { type: "text", list: "dl-cdesc", autocomplete: "off", value: row.descrizione || (rimborso ? "Rimborso" : "") });
   const fNote = h("input", { type: "text", value: row.note || "", placeholder: "facoltative" });
   const fTag = tagField(row, "dl-ctag");
@@ -265,7 +274,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const syncDiv = () => { custom.style.display = divSel.value === "x" ? "" : "none"; };
   divSel.addEventListener("change", syncDiv);
   syncDiv();
-  const catField = field("Categoria", fCat);
+  const catField = h("div", {}, field("Categoria", fCat), field("Specifica", fSub, dlSub));
   const divField = h("div", {}, field("Divisione", divSel), custom);
   const spesaOnly = h("div", {}, catField, divField);
   const payLbl = field("Pagato da", payer);
@@ -273,7 +282,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const applyTipo = () => {
     spesaOnly.style.display = tipo === M.T.RIMBORSO ? "none" : "";
     divField.style.display = tipo === M.T.SPESA ? "" : "none";
-    catField.firstChild.textContent = tipo === M.T_PRESTITO ? "Per cosa (categoria)" : "Categoria";
+    catField.firstChild.firstChild.textContent = tipo === M.T_PRESTITO ? "Per cosa (categoria)" : "Categoria";
     payLbl.firstChild.textContent = tipo === M.T.RIMBORSO ? "Chi dà i soldi" : tipo === M.T_PRESTITO ? "Chi presta" : "Pagato da";
   };
   const tipoSeg = segmented([{ value: M.T.SPESA, label: "Spesa" }, { value: M.T_PRESTITO, label: "Prestito" },
@@ -311,6 +320,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
     if (!fData.value) return "Scegli la data.";
     if (imp == null || imp <= 0) return "Scrivi l'importo (es. 12,50).";
     const out = { data: fData.value, tipo, importo: imp, categoria: tipo === M.T.RIMBORSO ? "" : fCat.value,
+      sottocategoria: tipo === M.T.RIMBORSO ? "" : fSub.value.trim(),
       descrizione: fDesc.value.trim(), pagato_da: payer.get(), note: fNote.value.trim(),
       etichetta: M.normTag(fTag.input.value), ...fFoto.value(fData.value, fDesc.value.trim()) };
     if (tipo === M.T.SPESA) {
@@ -332,6 +342,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
     if (typeof v === "string") { err.textContent = v; return; }
     err.textContent = "";
     try {
+      D.rememberSub("comune", Number(v.data.slice(0, 4)), M.T.SPESA, v.categoria, v.sottocategoria);
       if (editing) {
         const changes = {};
         for (const [k, x] of Object.entries(noPhoto(v))) if ((row[k] ?? "") !== x) changes[k] = x;

@@ -76,8 +76,12 @@ export async function call(payload, link = settings) {
   return j;
 }
 
+let syncAgain = false;
 export async function sync() {
-  if (status.syncing || !isLinked()) return;
+  if (!isLinked()) return;
+  // voci aggiunte mentre una sincronizzazione è in corso: si mandano subito dopo, senza aspettare la prossima
+  if (status.syncing) { syncAgain = true; return; }
+  syncAgain = false;
   status.syncing = true;
   status.error = "";
   emit("status");
@@ -129,6 +133,7 @@ export async function sync() {
     const after = JSON.stringify([cache.copia?.generata, cache.coda, cache.errori, queue.length, cache.altroCoda,
       cache.blocchi?.locks]);
     emit(after !== before ? "data" : "status");
+    if (syncAgain && queue.some((op) => !op.sent)) setTimeout(sync, 0);
   }
 }
 const strip = (op) => { const o = { ...op }; delete o.sent; return o; };
@@ -306,7 +311,41 @@ export function budget() {
 export function monthSpese(y, m) {
   return isMichele() ? M.monthTotals(allMovs(y), y, m).uscite : taniaMonth(y, m).spese;
 }
-export const categorie = (y) => latest("personal", y)?.categorie || [];
+/** Categorie del file, con quelle nuove (o le specifiche nuove) mandate dal telefono e non ancora scritte dal PC. */
+function withPendingCats(kind, rows) {
+  const out = rows.map((c) => ({ ...c, sottocategorie: [...(c.sottocategorie || [])] }));
+  for (const op of pendingOps()) {
+    if (op.op !== "cat_add" || op.kind !== kind) continue;
+    const r = op.row || {};
+    const tipo = r.tipo || M.T.USCITA;
+    const name = String(r.categoria || "").trim().toLowerCase();
+    let c = out.find((x) => (kind === "comune" || (x.tipo || M.T.USCITA) === tipo) && x.categoria.toLowerCase() === name);
+    if (!c) {
+      c = kind === "comune" ? { categoria: r.categoria, budget: null, colore: r.colore || null, sottocategorie: [], _pending: true }
+        : { tipo, categoria: r.categoria, budget: null, colore: r.colore || null, sottocategorie: [], _pending: true };
+      out.push(c);
+    }
+    for (const s of r.sottocategorie || []) if (!c.sottocategorie.some((x) => x.toLowerCase() === s.toLowerCase())) c.sottocategorie.push(s);
+  }
+  return out;
+}
+export const categorie = (y) => withPendingCats("personal", latest("personal", y)?.categorie || []);
+/** Specifica scritta a mano in una voce: se la categoria c'è e la specifica non è nel suo elenco, la aggiunge. */
+export function rememberSub(kind, year, tipo, cat, sub) {
+  sub = String(sub || "").trim();
+  if (!cat || !sub) return;
+  const cats = kind === "comune" ? comuneCategorie(year) : categorie(year).filter((c) => (c.tipo || M.T.USCITA) === tipo);
+  const c = cats.find((x) => x.categoria === cat);
+  if (!c || (c.sottocategorie || []).some((x) => x.toLowerCase() === sub.toLowerCase())) return;
+  addCategory(kind, year, { tipo, categoria: cat, sottocategorie: [sub] });
+}
+/** Nuova categoria (o nuove specifiche di una categoria che c'è già): la scrive il PC alla prossima sincronizzazione. */
+export function addCategory(kind, year, row) {
+  const r = { categoria: String(row.categoria || "").trim(), sottocategorie: (row.sottocategorie || []).map((s) => String(s).trim()).filter(Boolean) };
+  if (!r.categoria) return;
+  if (kind !== "comune") r.tipo = row.tipo || M.T.USCITA;
+  enqueue({ op: "cat_add", kind, year, row: r });
+}
 
 // ---------------------------------------------------------------- funzioni accese sul PC (Impostazioni)
 export const settingOf = (key, comune = false) => M.setting(comune ? comuneInfo() || {} : personalInfo(), key);
@@ -361,7 +400,7 @@ export function semafori() {
   };
 }
 export const metodi = (y) => latest("personal", y)?.metodi || M.DEFAULT_METODI;
-export const comuneCategorie = (y) => latest("comune", y)?.categorie || [];
+export const comuneCategorie = (y) => withPendingCats("comune", latest("comune", y)?.categorie || []);
 
 // ---------------------------------------------------------------- scrittura (va in coda, poi al PC)
 function qid() { return "q" + M.newId() + M.newId(); }

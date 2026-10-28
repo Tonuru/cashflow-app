@@ -1,1 +1,1 @@
-{ "version": "1.12.0", "notes": "Spese comuni dall'aggiunta veloce: scegli Spesa, Prestito o Rimborso, con sotto cosa vuol dire e come restano i conti." }
+{ "version": "1.13.0", "notes": "Aggiunta veloce: dopo la categoria scegli la specifica (anche nel conto comune), con ＋ per creare categorie e specifiche nuove." }

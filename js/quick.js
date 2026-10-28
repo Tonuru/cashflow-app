@@ -41,6 +41,16 @@ export function guessCat(kind, descr) {
   return same ? same.categoria : "";
 }
 
+/** Specifica usata l'ultima volta con la stessa descrizione (nella stessa categoria). */
+function guessSub(kind, descr, cat) {
+  const d = String(descr || "").trim().toLowerCase();
+  const key = M.nomeChiave(d);
+  const hist = history(kind).filter((m) => m.categoria === cat && m.sottocategoria)
+    .sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  const same = hist.find((m) => (m.descrizione || "").trim().toLowerCase() === d) || (key && hist.find((m) => M.nomeChiave(m.descrizione) === key));
+  return same ? same.sottocategoria : "";
+}
+
 export function quickAdd(kind0 = "personal", { onDone } = {}) {
   const info = D.comuneInfo();
   let kind = kind0 === "comune" && info ? "comune" : "personal";
@@ -51,7 +61,9 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   // quota di persona_a per ogni scelta di divisione
   const myA = me === info?.persona_a;
   const st = { amount: "", cat: "", catAuto: false, descr: "", data: M.todayIso(), sub: "", metodo: "", note: "", tag: "",
-    foto: null, payer: me, ctipo: "spesa", div: qdef === 50 ? "meta" : "def", custom: 50, editing: null };
+    foto: null, payer: me, ctipo: "spesa", div: qdef === 50 ? "meta" : "def", custom: 50, editing: null,
+    step: "cats", newCat: false, newSub: false, nuove: [] };
+  // nuove: categorie/specifiche create qui ({categoria, subs}); vanno in coda solo quando si salva la voce
 
   const wrap = h("div.qa-wrap");
   const panel = h("div.qa");
@@ -62,8 +74,48 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   requestAnimationFrame(() => wrap.classList.add("open"));
 
   const value = () => Math.abs(M.parseAmount(String(st.amount)) || 0);
-  const cats = () => (kind === "comune" ? D.comuneCategorie(year) : D.categorie(year).filter((c) => c.tipo === M.T.USCITA))
-    .map((c) => c.categoria);
+  const cats = () => {
+    const out = (kind === "comune" ? D.comuneCategorie(year) : D.categorie(year).filter((c) => c.tipo === M.T.USCITA))
+      .map((c) => c.categoria);
+    for (const n of st.nuove) if (n.kind === kind && !out.some((c) => c.toLowerCase() === n.categoria.toLowerCase())) out.push(n.categoria);
+    return out;
+  };
+  /** Le specifiche della categoria scelta: quelle del file, quelle usate, quelle appena create. */
+  const catList = () => (kind === "comune" ? D.comuneCategorie(year) : D.categorie(year));
+  const subTipo = () => (kind === "comune" ? M.T.SPESA : M.T.USCITA);
+  const subs = () => {
+    const out = M.subcategories(catList(), history(kind), subTipo(), st.cat);
+    for (const n of st.nuove) {
+      if (n.kind !== kind || n.categoria.toLowerCase() !== st.cat.toLowerCase()) continue;
+      for (const x of n.subs) if (!out.some((o) => o.toLowerCase() === x.toLowerCase())) out.push(x);
+    }
+    return out;
+  };
+  /** Ricorda una categoria (e/o specifica) nuova; se c'è già con un altro maiuscolo/minuscolo usa quella. */
+  function remember(name, sub) {
+    name = name.trim().replace(/\s+/g, " ");
+    sub = (sub || "").trim().replace(/\s+/g, " ");
+    const have = cats().find((c) => c.toLowerCase() === name.toLowerCase());
+    if (have) name = have;
+    const known = sub ? M.subcategories(catList(), [], subTipo(), name) : [];
+    const isNewCat = !have || st.nuove.some((n) => n.kind === kind && n.categoria === name);
+    const isNewSub = sub && !known.some((x) => x.toLowerCase() === sub.toLowerCase());
+    if (isNewCat || isNewSub) {
+      let n = st.nuove.find((x) => x.kind === kind && x.categoria === name);
+      if (!n) { n = { kind, categoria: name, subs: [], nuova: !have }; st.nuove.push(n); }
+      if (isNewSub && !n.subs.some((x) => x.toLowerCase() === sub.toLowerCase())) n.subs.push(sub);
+    }
+    if (isNewSub) sub = (subs().find((x) => x.toLowerCase() === sub.toLowerCase())) || sub;
+    return [name, sub];
+  }
+  /** Sceglie la categoria, poi si passa alle sue specifiche. */
+  function pickCat(c) {
+    if (st.cat !== c) st.sub = "";
+    st.cat = c;
+    st.catAuto = false;
+    st.newCat = false;
+    st.step = "subs";
+  }
   /** Percentuale di persona_a per la divisione scelta. */
   const quotaA = () => {
     if (st.div === "meta") return 50;
@@ -81,7 +133,6 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
 
   // campi di testo che si scrivono in una riga al posto delle caselle
   const FIELDS = {
-    sub: { label: "Specifica", ph: "es. Gas, Benzina…", list: () => M.subcategories(D.categorie(year), history("personal"), M.T.USCITA, st.cat) },
     note: { label: "Note", ph: "facoltative" },
     tag: { label: "Etichetta (evento)", ph: "es. Viaggio Lisbona", list: () => D.tags() },
     custom: { label: `La mia parte in %`, ph: "es. 70", num: true },
@@ -109,7 +160,11 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     st.descr = descrIn.value;
     if (!st.cat || st.catAuto) {
       const g = guessCat(kind, st.descr);
-      if (g && cats().includes(g)) { st.cat = g; st.catAuto = true; draw(); }
+      if (g && cats().includes(g)) {
+        st.cat = g; st.catAuto = true;
+        st.step = "subs"; st.sub = st.sub || guessSub(kind, st.descr, g);
+        draw();
+      }
     }
   });
   descrIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); descrIn.blur(); } });
@@ -172,6 +227,13 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     if (!st.cat && kind === "personal") { err.textContent = "Scegli la categoria."; return; }
     if (kind === "comune" && st.ctipo === "spesa" && !st.cat) { err.textContent = "Scegli la categoria."; return; }
     const allegato = st.foto ? M.receiptPath(st.data, st.descr) : "";
+    // categorie e specifiche nuove: prima della voce, così il PC le trova già nel file
+    for (const n of st.nuove) {
+      if (n.kind !== kind || n.categoria !== st.cat) continue;
+      const nuoveSub = n.subs.filter((x) => x === st.sub);
+      if (!n.nuova && !nuoveSub.length) continue;
+      D.addCategory(kind, Number(st.data.slice(0, 4)), { tipo: M.T.USCITA, categoria: n.categoria, sottocategorie: nuoveSub });
+    }
     if (kind === "personal") {
       await D.addMov("personal", { data: st.data, tipo: M.T.USCITA, importo: imp, categoria: st.cat, sottocategoria: st.sub.trim(),
         descrizione: st.descr.trim(), metodo: st.metodo, note: st.note.trim(), etichetta: M.normTag(st.tag),
@@ -184,7 +246,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
         const toA = st.payer !== info.persona_a;
         qa = toA ? 100 : 0; qb = toA ? 0 : 100;
       } else if (st.ctipo === "rimborso") { tipo = M.T.RIMBORSO; qa = ""; qb = ""; cat = ""; }
-      await D.addMov("comune", { data: st.data, tipo, importo: imp, categoria: cat, descrizione: st.descr.trim() || (st.ctipo === "rimborso" ? "Rimborso" : ""),
+      await D.addMov("comune", { data: st.data, tipo, importo: imp, categoria: cat, sottocategoria: cat ? st.sub.trim() : "", descrizione: st.descr.trim() || (st.ctipo === "rimborso" ? "Rimborso" : ""),
         pagato_da: st.payer, quota_a: qa, quota_b: qb, note: st.note.trim(), etichetta: M.normTag(st.tag),
         ...(allegato ? { allegato } : {}) });
     }
@@ -197,7 +259,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   function full() {
     close();
     const row = { data: st.data, importo: value() || "", categoria: st.cat, descrizione: st.descr, note: st.note, etichetta: st.tag };
-    if (kind === "comune") comuneSheet(row, { onDone }); else movimentoSheet({ ...row, tipo: M.T.USCITA, sottocategoria: st.sub }, { onDone });
+    if (kind === "comune") comuneSheet({ ...row, sottocategoria: st.sub }, { onDone }); else movimentoSheet({ ...row, tipo: M.T.USCITA, sottocategoria: st.sub }, { onDone });
   }
 
   // ---------------------------------------------------------------- divisione della spesa comune
@@ -223,13 +285,89 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     return [h("b", {}, both), h("span", {}, ` — ${why}`)];
   }
 
+  // ---------------------------------------------------------------- categorie e specifiche
+  /** Riquadro per scrivere un nome nuovo (categoria, oppure categoria + specifica). */
+  function newForm(title, fields, onOk, onCancel) {
+    const ins = fields.map((f) => h("input.qa-text", { type: "text", placeholder: f.ph, autocomplete: "off", enterkeyhint: "done",
+      value: f.value || "", "aria-label": f.label }));
+    const ok = () => {
+      const vals = ins.map((i) => i.value.trim());
+      if (!vals[0]) { ins[0].focus(); return; }
+      onOk(...vals);
+    };
+    ins.forEach((i, k) => i.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (k + 1 < ins.length && !ins[k + 1].value) ins[k + 1].focus(); else ok();
+    }));
+    setTimeout(() => ins[0].focus(), 30);
+    return h("div.qa-new", {}, h("div.qa-lbl.center", {}, title),
+      fields.map((f, k) => h("div.qa-new-f", {}, h("span.qa-new-l", {}, f.label), ins[k])),
+      h("div.qa-new-btns", {}, h("button.qa-new-no", { type: "button", onclick: onCancel }, "Annulla"),
+        h("button.qa-done", { type: "button", onclick: ok }, "Aggiungi")));
+  }
+
+  function catsBlock(com) {
+    const prest = com && st.ctipo === "prestito";
+    const isNew = (c) => st.nuove.some((n) => n.kind === kind && n.categoria === c);
+    // nuova categoria
+    if (st.newCat) {
+      const fields = [{ label: "Categoria", ph: "es. Animali, Bambini…" }, { label: "Specifica", ph: "facoltativa, es. Veterinario" }];
+      return h("div.qa-cats", {}, newForm("NUOVA CATEGORIA", fields, (name, sub) => {
+        const [n, s2] = remember(name, sub);
+        pickCat(n);
+        if (s2) st.sub = s2;
+        draw();
+      }, () => { st.newCat = false; draw(); }));
+    }
+    // specifiche della categoria scelta
+    if (st.step === "subs" && st.cat) {
+      const back = h("button.qa-back", { type: "button", onclick: () => { st.step = "cats"; st.newSub = false; draw(); } },
+        h("span.qa-back-a", {}, "‹"), "Categorie");
+      const title = h("div.qa-subhead", {}, back,
+        h("div.qa-subcat", {}, h("span.qa-ci", {}, catIcon(st.cat)), h("b", {}, st.cat)),
+        h("div.qa-subsp"));
+      if (st.newSub) {
+        return h("div.qa-cats", {}, title, newForm(`NUOVA SPECIFICA DI ${st.cat.toUpperCase()}`,
+          [{ label: "Specifica", ph: "es. Gas, Condominio…" }],
+          (sub) => { const [, s2] = remember(st.cat, sub); st.sub = s2; st.newSub = false; draw(); },
+          () => { st.newSub = false; draw(); }));
+      }
+      const list = subs();
+      const chip = (val, label, extra = "") => h("button.qa-sub" + (st.sub === val ? ".on" : "") + extra, { type: "button",
+        onclick: () => { st.sub = val; draw(); } }, label);
+      return h("div.qa-cats", {}, title,
+        h("div.qa-lbl.center", {}, "SPECIFICA", st.sub && st.catAuto ? h("span.qa-sug", {}, " · suggerita") : "",
+          isNew(st.cat) ? h("span.qa-sug", {}, " · categoria nuova") : ""),
+        h("div.qa-subs", {},
+          list.map((x) => chip(x, x)),
+          chip("", "Nessuna", ".none"),
+          h("button.qa-sub.qa-plus", { type: "button", onclick: () => { st.newSub = true; draw(); } }, "＋ Nuova")),
+        !list.length ? h("div.qa-hint", {}, "Nessuna specifica per ora: puoi crearne una o andare avanti senza.") : null);
+    }
+    const order = catOrder(kind, cats());
+    if (st.cat && !order.includes(st.cat)) order.unshift(st.cat);
+    return h("div.qa-cats", {},
+      h("div.qa-lbl.center", {}, prest ? "PER COSA (facoltativo)" : "CATEGORIA",
+        st.cat && st.catAuto ? h("span.qa-sug", {}, " · suggerita dalla descrizione") : ""),
+      h("div.qa-grid", {}, order.map((c) => h("button.qa-cat" + (st.cat === c ? ".on" : ""), { type: "button",
+        onclick: () => {
+          pickCat(c);
+          draw();
+        } },
+      h("span.qa-ci", {}, catIcon(c)), h("span.qa-cn", {}, c + (isNew(c) ? " ✨" : ""),
+        st.cat === c && st.sub ? h("span.qa-cs", {}, st.sub) : null))),
+      h("button.qa-cat.qa-plus", { type: "button", onclick: () => { st.newCat = true; draw(); } },
+        h("span.qa-ci", {}, "＋"), h("span.qa-cn", {}, "Nuova"))));
+  }
+
   // ---------------------------------------------------------------- disegno
   function draw() {
     const com = kind === "comune";
     panel.classList.toggle("com", com);
     const seg = h("div.qa-seg", {},
-      h("button" + (!com ? ".on" : ""), { type: "button", onclick: () => { if (com) { kind = "personal"; st.cat = ""; draw(); } } }, "Mia"),
-      info ? h("button" + (com ? ".on.com" : ""), { type: "button", onclick: () => { if (!com) { kind = "comune"; st.cat = ""; st.sub = ""; st.metodo = ""; draw(); } } }, "Comune") : null);
+      h("button" + (!com ? ".on" : ""), { type: "button", onclick: () => { if (com) { kind = "personal"; st.cat = ""; st.sub = ""; st.step = "cats"; st.newCat = false; draw(); } } }, "Mia"),
+      info ? h("button" + (com ? ".on.com" : ""), { type: "button", onclick: () => { if (!com) { kind = "comune"; st.cat = ""; st.sub = ""; st.metodo = ""; st.step = "cats"; st.newCat = false; draw(); } } }, "Comune") : null);
     const head = h("div.qa-head", {}, h("button.qa-x", { type: "button", onclick: close, "aria-label": "Chiudi" }, "✕"), seg,
       h("button.qa-x.qa-full", { type: "button", onclick: full, "aria-label": "Modulo completo", title: "Modulo completo" }, "⋯"));
 
@@ -253,6 +391,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
       };
       const pickTipo = (id) => {
         st.ctipo = id;
+        if (id === "rimborso") st.step = "cats";
         if (id === "rimborso") {
           const s = saldo();
           if (!st.amount && s.debitore) { st.amount = M.fmtEur(s.importo).replace(" €", "").replace(/\./g, ""); st.payer = s.debitore; }
@@ -271,16 +410,9 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
         divNote, rimbNote);
     }
 
-    // tutte le categorie, in una griglia
-    const order = catOrder(kind, cats());
-    if (st.cat && !order.includes(st.cat)) order.unshift(st.cat);
+    // tutte le categorie in una griglia; nelle spese personali, scelta la categoria, al suo posto le specifiche
     const rimb = com && st.ctipo === "rimborso";
-    const grid = rimb ? h("div.qa-cats") : h("div.qa-cats", {},
-      h("div.qa-lbl.center", {}, com && st.ctipo === "prestito" ? "PER COSA (facoltativo)" : "CATEGORIA",
-        st.cat && st.catAuto ? h("span.qa-sug", {}, " · suggerita dalla descrizione") : ""),
-      h("div.qa-grid", {}, order.map((c) => h("button.qa-cat" + (st.cat === c ? ".on" : ""), { type: "button",
-        onclick: () => { st.cat = st.cat === c ? "" : c; st.catAuto = false; draw(); } },
-      h("span.qa-ci", {}, catIcon(c)), h("span.qa-cn", {}, c)))));
+    const grid = rimb ? h("div.qa-cats") : catsBlock(com);
 
     // le altre informazioni: caselle uguali in una riga (o il campo di testo che si sta scrivendo)
     let infoRow;
@@ -309,7 +441,6 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
       };
       infoRow = h("div.qa-boxes", {},
         h("label.qa-box" + (st.data !== M.todayIso() ? ".on" : ""), { "data-f": "data" }, h("span.qa-bi", {}, "📅"), h("span.qa-bt", {}, dateTxt), dateIn),
-        !com ? box("sub", "🔖", st.sub || "specifica", !!st.sub, () => { st.editing = "sub"; draw(); }) : null,
         !com ? h("label.qa-box" + (st.metodo ? ".on" : ""), { "data-f": "metodo" }, h("span.qa-bi", {}, "💳"), h("span.qa-bt", {}, st.metodo || "metodo"), metIn) : null,
         box("tag", "🏷", st.tag || "etichetta", !!st.tag, () => { st.editing = "tag"; draw(); }),
         com ? box("note", "📝", st.note || "note", !!st.note, () => { st.editing = "note"; draw(); }) : null,
