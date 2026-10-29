@@ -192,6 +192,8 @@ export function annual(movs, y) {
 export function medieAnno(movs, y) {
   let n = 0;
   const rest = { solo_stipendio: 0, senza_extra: 0, totale: 0 };
+  const cols = { stipendio: 0, spese: 0, investimenti: 0, extra: 0 };
+  const mesi = [];
   let extraStip = 0;
   for (let mo = 1; mo <= 12; mo++) {
     const t = monthTotals(movs, y, mo);
@@ -201,12 +203,16 @@ export function medieAnno(movs, y) {
     const stip = (t.per_tipo[T.STIPENDIO] || 0) - extra;
     if (stip <= 0) continue;
     n++;
+    mesi.push(mo);
     const r = rimanenti(t);
     for (const k in rest) rest[k] += r[k] - extra;
+    cols.stipendio += stip; cols.spese += t.uscite;
+    cols.investimenti += t.per_tipo[T.INVESTIMENTO] || 0; cols.extra += t.per_tipo[T.ENTRATA] || 0;
   }
   const an = annual(movs, y);
   extraStip += an.tredicesima + an.quattordicesima;
-  const out = { mesi_validi: n, tredicesima_quattordicesima: pyRound2(extraStip) };
+  const out = { mesi_validi: n, mesi, tredicesima_quattordicesima: pyRound2(extraStip),
+    colonne: Object.fromEntries(Object.entries(cols).map(([k, v]) => [k, n ? pyRound2(v / n) : 0])) };
   for (const k in rest) {
     const media = n ? rest[k] / n : 0;
     out[k] = pyRound2(media);
@@ -304,7 +310,7 @@ export function comunePersonalRows(movs, me, pa, pb) {
     out.push({ id: `com:${src.id}`, data: when, tipo: T.USCITA, importo: pyRound2(it.amount),
       categoria: prest ? CAT_PRESTITI : CAT_SPESE_COMUNI, sottocategoria: src.categoria || "",
       descrizione: src.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE,
-      etichetta: src.etichetta || "", allegato: src.allegato || "" });
+      etichetta: src.etichetta || "", allegato: src.allegato || "", comune_sub: src.sottocategoria || "" });
   };
   const pay = (person, amount, when) => {
     for (const it of debts[person]) {
@@ -985,4 +991,50 @@ export function eventiElenco(movs) {
   }
   out.sort((a, b) => (b.al || "").localeCompare(a.al || ""));
   return out;
+}
+
+
+// ---------------------------------------------------------------- spese comuni: in quale mia categoria vanno
+// (come calc.comune_target / map_comune_rows sul PC)
+const COMUNE_SIMILI = [["aliment", "spesa", "supermerc"], ["bollett", "utenz"], ["ristor", "bar", "pizz"],
+  ["viagg", "vacanz"], ["casa", "affitt", "mutu"], ["trasport", "auto", "carbur", "benzin"],
+  ["salut", "farmac", "medic"], ["svago", "hobby", "divert"], ["regal"], ["animal"],
+  ["abbonam", "telefon"], ["vestit", "abbigl"], ["arred", "mobil"], ["pulizi"]];
+const TARI = /\btari\b|tassa\s+(sui\s+)?rifiuti/i;
+const nk = (s) => String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+export function comuneMappa(info) {
+  const v = (info || {}).comune_mappa;
+  if (v && typeof v === "object") return { ...v };
+  try { const d = v ? JSON.parse(v) : {}; return d && typeof d === "object" && !Array.isArray(d) ? d : {}; } catch { return {}; }
+}
+function simile(a, cats) {
+  const na = nk(a);
+  for (const grp of COMUNE_SIMILI) {
+    if (grp.some((g) => na.startsWith(g) || na.includes(g))) {
+      const c = cats.find((x) => { const nc = nk(x); return grp.some((g) => nc.startsWith(g) || nc.includes(g)); });
+      if (c) return c;
+    }
+  }
+  return null;
+}
+export function comuneTarget(cat, sub, descr, personalCats, mappa) {
+  const cats = personalCats.filter((c) => c && c !== CAT_SPESE_COMUNI && c !== CAT_PRESTITI);
+  for (const k of [sub ? `${cat}/${sub}` : null, cat]) {
+    if (k && Object.prototype.hasOwnProperty.call(mappa, k)) return cats.includes(mappa[k]) ? mappa[k] : CAT_SPESE_COMUNI;
+  }
+  if (TARI.test(`${sub} ${descr}`)) {
+    const b = cats.find((c) => ["bollett", "utenz"].some((g) => nk(c).includes(g)));
+    if (b) return b;
+  }
+  const same = cats.find((c) => nk(c) === nk(cat));
+  if (same) return same;
+  return simile(cat, cats) || CAT_SPESE_COMUNI;
+}
+export function mapComuneRows(rows, personalCats, mappa) {
+  return rows.map((r) => {
+    if (r.categoria !== CAT_SPESE_COMUNI) return r;
+    const cat = r.sottocategoria || "", sub = r.comune_sub || "";
+    const tgt = comuneTarget(cat, sub, r.descrizione || "", personalCats, mappa);
+    return { ...r, categoria: tgt, sottocategoria: tgt !== CAT_SPESE_COMUNI ? sub : cat, comune_categoria: cat };
+  });
 }

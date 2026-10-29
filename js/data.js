@@ -244,10 +244,13 @@ function comuneRowsAll() {
   const info = comuneInfo();
   if (!info || !myKey()) return [];
   const all = years("comune").flatMap((y) => comuneMovs(y));
-  const key = JSON.stringify([cache.copia?.generata, pendingOps().length, all.length, profile().utente]);
+  const key = JSON.stringify([cache.copia?.generata, pendingOps().length, all.length, profile().utente,
+    personalInfo().comune_mappa || ""]);
   if (key !== _comRowsKey) {
     _comRowsKey = key;
-    _comRows = M.comunePersonalRows(all, meInComune(), info.persona_a, info.persona_b);
+    const cats = categorie(new Date().getFullYear()).filter((c) => (c.tipo || M.T.USCITA) === M.T.USCITA).map((c) => c.categoria);
+    _comRows = M.mapComuneRows(M.comunePersonalRows(all, meInComune(), info.persona_a, info.persona_b), cats,
+      M.comuneMappa(personalInfo()));
   }
   return _comRows;
 }
