@@ -3,8 +3,8 @@
 // stipendio dalla professione = netto del mese prima, Educativa, Altri ingressi, Spese.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, moneyColor, monthNav, donut, bars, sheet, toast, busy, fill } from "../ui.js";
-import { movimentoSheet, vociSheet, movRow } from "../forms.js";
+import { h, C, moneyColor, monthNav, donut, bars, sheet, toast, busy, fill, dateField } from "../ui.js";
+import { movimentoSheet, vociSheet, movRow, addedList } from "../forms.js";
 import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 import { obiettiviCard, seduteCard, sogliaCard, tasseCard } from "./funzioni.js";
 import { semaforoLine } from "../semafori.js";
@@ -82,9 +82,12 @@ export function renderMese(root, rerender, view) {
   const pazCard = h("div.card", { "data-fold": "pazienti" },
     h("div.card-title.row.between", {}, h("span", {}, "Pazienti del mese"),
       h("span.big-green", {}, paz.length ? `${paz.length} · ${nSed} sedute` : "")),
+    h("label.check.paz-eye", { onclick: (e) => e.stopPropagation() },
+      h("input", { type: "checkbox", checked: D.showPaz(), onchange: (e) => D.setShowPaz(e.target.checked) }),
+      " 👁 Mostra i nomi dei pazienti"),
     paz.length ? h("div.list", {}, paz.map(([name, rows, tot]) => h("button.item.paz", { type: "button",
-      onclick: () => vociSheet(`${name} · ${M.MESI[m - 1]}`, rows, { onTap: (x) => openTania(x, rerender) }) },
-    h("div.item-main", {}, h("div.item-title", {}, name), h("div.item-sub", {}, importi(rows))),
+      onclick: () => vociSheet(`${D.pazName(name)} · ${M.MESI[m - 1]}`, rows, { onTap: (x) => openTania(x, rerender) }) },
+    h("div.item-main", {}, h("div.item-title", {}, D.pazName(name)), h("div.item-sub", {}, importi(rows))),
     h("div.item-amt", { style: { color: C.green } }, M.fmtEur(tot)))),
     h("div.paz-tot", {}, h("span", {}, `Totale (${paz.length} pazienti, ${nSed} sedute)`),
       h("b", { style: { color: C.green } }, M.fmtEur(p.incasso))))
@@ -184,29 +187,34 @@ export function sedutaSheet(data, paziente, rerender) {
     .sort((a, b) => (b.data + (b.inserito || "")).localeCompare(a.data + (a.inserito || "")));
   const lastFee = new Map();
   for (const m of all) if (m.sottocategoria && !lastFee.has(m.sottocategoria)) lastFee.set(m.sottocategoria, Number(m.importo || 0));
-  const fPaz = h("input", { type: "text", list: "dl-paz", autocomplete: "off", value: paziente || "",
+  // nomi nascosti: nell'elenco «Paziente N», ma la seduta si salva col nome vero
+  const alias = new Map([...lastFee.keys()].filter((p) => D.pazName(p) !== p).map((p) => [D.pazName(p), p]));
+  const real = (t) => { t = (t || "").trim(); return alias.get(t) || t; };
+  const pazName = (p) => D.pazName(p);
+  const fPaz = h("input", { type: "text", list: "dl-paz", autocomplete: "off", value: paziente ? D.pazName(paziente) : "",
     placeholder: "Nome o iniziali (anche nuovo)" });
-  const fData = h("input", { type: "date", value: data });
+  const fData = dateField(data);
   const fImp = h("input", { type: "text", inputmode: "decimal", placeholder: "0,00", autocomplete: "off" });
-  const setFee = () => { const f = lastFee.get(fPaz.value.trim()); if (f) fImp.value = String(f).replace(".", ","); };
+  const setFee = () => { const f = lastFee.get(real(fPaz.value)); if (f) fImp.value = String(f).replace(".", ","); };
   fPaz.addEventListener("change", setFee);
   fPaz.addEventListener("input", setFee);
   setFee();
   const err = h("div.form-err");
-  const done = h("div.list");
+  const added = addedList("personal");
   const unpaidOn = D.feature("sedute_attive");
   const fUnpaid = h("input", { type: "checkbox" });
   const add = async (close) => {
-    const paz = fPaz.value.trim(), imp = M.parseAmount(fImp.value);
+    const paz = real(fPaz.value), imp = M.parseAmount(fImp.value);
     if (!paz) { err.textContent = "Scrivi il paziente (nome o iniziali)."; return; }
     if (imp == null || imp <= 0) { err.textContent = "Scrivi l'importo della seduta (es. 45)."; return; }
     if (!fData.value) { err.textContent = "Scegli la data."; return; }
     err.textContent = "";
-    await D.addMov("personal", { data: fData.value, tipo: M.T.ENTRATA, importo: imp, categoria: M.CAT_PROFESSIONE,
+    const full = await D.addMov("personal", { data: fData.value, tipo: M.T.ENTRATA, importo: imp, categoria: M.CAT_PROFESSIONE,
       sottocategoria: paz, descrizione: "Seduta", metodo: "", note: "", origine: "iPhone",
       ...(unpaidOn && fUnpaid.checked ? { incasso: "no" } : {}) });
     lastFee.set(paz, imp);
-    done.append(h("div.done-row", {}, `✓ ${M.fmtDate(fData.value).slice(0, 5)} · ${paz} · ${M.fmtEur(imp)}`));
+    added.add(full, { title: pazName(paz), sub: M.fmtDate(full.data).slice(0, 5) + (full.incasso === "no" ? " · da incassare" : ""),
+      color: C.green });
     toast("Seduta salvata ✓", "ok");
     rerender();
     if (close) s.close(); else { fPaz.value = ""; fImp.value = ""; fPaz.focus(); }
@@ -215,12 +223,12 @@ export function sedutaSheet(data, paziente, rerender) {
   bMore.onclick = () => busy(bMore, add(false));
   const bSave = h("button.btn.primary", { type: "button" }, "Salva");
   bSave.onclick = () => busy(bSave, add(true));
-  const names = [...lastFee.keys()].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const names = [...lastFee.keys()].map((p) => D.pazName(p)).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
   fill(s.body, semaforoLine("personal"),
     h("label.field", {}, h("span", {}, "Paziente"), fPaz, h("datalist", { id: "dl-paz" }, names.map((n) => h("option", { value: n })))),
-    h("div.grid2", {}, h("label.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
+    h("div.grid2", {}, h("div.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
     unpaidOn ? h("label.check", {}, fUnpaid, " Non ancora pagata (da incassare)") : null,
-    err, done, h("div.row.gap.actions", {}, bMore, bSave));
+    err, h("div.row.gap.actions", {}, bMore, bSave), added.el);
   setTimeout(() => (paziente ? fImp : fPaz).focus(), 300);
 }
 

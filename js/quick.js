@@ -4,7 +4,7 @@
 // parti in euro scritte sotto.
 import * as D from "./data.js";
 import * as M from "./model.js";
-import { h, fill, toast, busy } from "./ui.js";
+import { h, fill, toast, busy, calendarPop } from "./ui.js";
 import { movimentoSheet, comuneSheet, shrinkPhoto } from "./forms.js";
 import { semaforoLine } from "./semafori.js";
 
@@ -168,8 +168,6 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     }
   });
   descrIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); descrIn.blur(); } });
-  const dateIn = h("input.qa-hidden", { type: "date", value: st.data, "aria-label": "Data" });
-  dateIn.addEventListener("change", () => { st.data = dateIn.value || M.todayIso(); draw(); });
   const metIn = h("select.qa-hidden", { "aria-label": "Metodo di pagamento" });
   metIn.addEventListener("change", () => { st.metodo = metIn.value; draw(); });
 
@@ -431,7 +429,6 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
       const box = (key, icon, txt, on, onclick, extra) => h("button.qa-box" + (on ? ".on" : ""), { type: "button", "data-f": key, onclick },
         h("span.qa-bi", {}, icon), h("span.qa-bt", {}, txt), extra);
       const dateTxt = st.data === M.todayIso() ? "oggi" : M.fmtDate(st.data).slice(0, 5);
-      dateIn.value = st.data;
       const metodi = D.metodi(year);
       fill(metIn, h("option", { value: "" }, "— nessuno —"), metodi.map((x) => h("option", { value: x }, x)));
       metIn.value = st.metodo;
@@ -440,7 +437,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
         fileIn.click();
       };
       infoRow = h("div.qa-boxes", {},
-        h("label.qa-box" + (st.data !== M.todayIso() ? ".on" : ""), { "data-f": "data" }, h("span.qa-bi", {}, "📅"), h("span.qa-bt", {}, dateTxt), dateIn),
+        box("data", "📅", dateTxt, st.data !== M.todayIso(), () => calendarPop(st.data, (v) => { st.data = v || M.todayIso(); draw(); })),
         !com ? h("label.qa-box" + (st.metodo ? ".on" : ""), { "data-f": "metodo" }, h("span.qa-bi", {}, "💳"), h("span.qa-bt", {}, st.metodo || "metodo"), metIn) : null,
         box("tag", "🏷", st.tag || "etichetta", !!st.tag, () => { st.editing = "tag"; draw(); }),
         com ? box("note", "📝", st.note || "note", !!st.note, () => { st.editing = "note"; draw(); }) : null,

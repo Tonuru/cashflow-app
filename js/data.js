@@ -436,6 +436,31 @@ export async function editMov(kind, year, id, changes) {
   enqueue({ op: "edit", kind, year, id, changes: { ...changes, modificato: M.nowIso() }, before, full: clean(cur) });
 }
 
+// ---------------------------------------------------------------- Tania: nomi dei pazienti nascosti
+// A ogni apertura dell'app i nomi sono nascosti («Paziente 1», «Paziente 2»… in ordine di prima seduta, come sul PC).
+let pazShown = false;
+let pazCache = null;
+export const showPaz = () => pazShown;
+export function setShowPaz(v) { pazShown = !!v; emit("data"); }
+export function pazName(name) {
+  name = name || "";
+  if (pazShown || !name) return name;
+  const all = allMovsEveryYear().filter(M.isProfIncome);
+  if (!pazCache || pazCache.n !== all.length) {
+    const first = new Map();
+    for (const m of all) {
+      const k = String(m.sottocategoria || "").trim().toLowerCase();
+      if (!k) continue;
+      const d = `${m.data || ""}|${m.inserito || ""}|${k}`;
+      if (!first.has(k) || d < first.get(k)) first.set(k, d);
+    }
+    const codes = new Map([...first.entries()].sort((a, b) => (a[1] < b[1] ? -1 : 1)).map(([k], i) => [k, i + 1]));
+    pazCache = { n: all.length, codes };
+  }
+  const n = pazCache.codes.get(name.trim().toLowerCase());
+  return n ? `Paziente ${n}` : "Paziente";
+}
+
 export async function deleteMov(kind, year, id) {
   const cur = findMov(kind, year, id);
   const before = cur ? Object.fromEntries(["data", "tipo", "importo", "categoria", "descrizione", "pagato_da",

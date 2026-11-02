@@ -195,3 +195,101 @@ export function foldCards(root, page) {
     });
   }
 }
+
+// ---------------------------------------------------------------- data con calendario («A · Classico»)
+const pad2 = (n) => String(n).padStart(2, "0");
+const isoOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const itOf = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "");
+function parseIt(t) {
+  const m = String(t || "").trim().match(/^(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{2,4}))?$/);
+  if (!m) return null;
+  let y = m[3] ? Number(m[3]) : new Date().getFullYear();
+  if (y < 100) y += 2000;
+  const d = new Date(y, Number(m[2]) - 1, Number(m[1]));
+  return d.getMonth() === Number(m[2]) - 1 ? isoOf(d) : null;
+}
+const CAL_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#9CC2FF" stroke-width="2" ' +
+  'stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>' +
+  '<path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01" stroke-width="2.6"/></svg>';
+
+/** Campo data: si scrive a mano (gg/mm/aaaa) oppure si tocca il tasto 📅 per il calendario.
+ *  Si usa come un <input type="date">: .value è la data ISO (aaaa-mm-gg) e manda l'evento «change». */
+export function dateField(iso, { required = false } = {}) {
+  const inp = h("input.datef-in", { type: "text", inputmode: "numeric", placeholder: "gg/mm/aaaa",
+    autocomplete: "off", value: itOf(iso), "aria-label": "Data" });
+  const btn = h("button.datef-btn", { type: "button", "aria-label": "Apri il calendario", html: CAL_SVG });
+  const el = h("div.datef", {}, inp, btn);
+  let cur = iso || "";
+  const set = (v, fire) => {
+    cur = v || "";
+    inp.value = itOf(cur);
+    inp.classList.remove("bad");
+    if (fire) el.dispatchEvent(new Event("change"));
+  };
+  Object.defineProperty(el, "value", { get: () => cur, set: (v) => set(v, false) });
+  el.required = required;
+  inp.addEventListener("change", () => {
+    const v = parseIt(inp.value);
+    if (v) set(v, true);
+    else if (!inp.value.trim()) { cur = ""; el.dispatchEvent(new Event("change")); }
+    else inp.classList.add("bad");
+  });
+  btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); calendarPop(cur, (v) => set(v, true)); });
+  el.open = () => calendarPop(cur, (v) => set(v, true));
+  return el;
+}
+
+/** Calendario a comparsa: griglia del mese, ‹ ›, tocco sul mese = elenco dei mesi, in fondo Oggi / Ieri / Chiudi. */
+export function calendarPop(iso, onPick) {
+  const today = new Date();
+  const todayIso = isoOf(today);
+  const sel = iso || todayIso;
+  let y = Number(sel.slice(0, 4)), m = Number(sel.slice(5, 7)) - 1;
+  let months = false;
+  const close = () => { wrap.classList.remove("open"); setTimeout(() => wrap.remove(), 200); };
+  const pick = (v) => { close(); onPick(v); };
+  const box = h("div.cal");
+  const wrap = h("div.cal-wrap", { onclick: (e) => { if (e.target === wrap) close(); } }, box);
+  const shift = (d) => { m += d; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } render(); };
+  const render = () => {
+    const head = months
+      ? h("div.cal-head", {}, h("button.cal-ar", { onclick: () => { y--; render(); } }, "‹"),
+        h("button.cal-title", { onclick: () => { months = false; render(); } }, `${y} ▴`),
+        h("button.cal-ar", { onclick: () => { y++; render(); } }, "›"))
+      : h("div.cal-head", {}, h("button.cal-ar", { onclick: () => shift(-1), "aria-label": "Mese prima" }, "‹"),
+        h("button.cal-title", { onclick: () => { months = true; render(); } }, `${MESI[m]} ${y} ▾`),
+        h("button.cal-ar", { onclick: () => shift(1), "aria-label": "Mese dopo" }, "›"));
+    let grid;
+    if (months) {
+      grid = h("div.cal-months", {}, MESI.map((n, i) => h("button.cal-m" + (i === m ? ".on" : ""),
+        { onclick: () => { m = i; months = false; render(); } }, n)));
+    } else {
+      const first = new Date(y, m, 1);
+      const start = (first.getDay() + 6) % 7;            // lunedì = 0
+      const cells = [];
+      for (let i = 0; i < 42; i++) {
+        const d = new Date(y, m, 1 - start + i);
+        const v = isoOf(d);
+        const wd = (d.getDay() + 6) % 7;
+        const cls = ["cal-d"];
+        if (d.getMonth() !== m) cls.push("out");
+        else if (wd >= 5) cls.push("we");
+        if (v === todayIso) cls.push("today");
+        if (v === sel) cls.push("sel");
+        cells.push(h("button." + cls.join("."), { onclick: () => pick(v) }, String(d.getDate())));
+      }
+      grid = h("div.cal-grid", {}, ["L", "M", "M", "G", "V", "S", "D"].map((w, i) => h("div.cal-wd" + (i >= 5 ? ".we" : ""), {}, w)),
+        cells);
+    }
+    const yest = new Date(today); yest.setDate(today.getDate() - 1);
+    fill(box, head, grid, h("div.cal-foot", {},
+      h("button.cal-chip.on", { onclick: () => pick(todayIso) }, "Oggi"),
+      h("button.cal-chip", { onclick: () => pick(isoOf(yest)) }, "Ieri"),
+      h("span", { style: { flex: "1" } }),
+      h("button.cal-chip", { onclick: close }, "Chiudi")));
+  };
+  render();
+  document.body.append(wrap);
+  requestAnimationFrame(() => wrap.classList.add("open"));
+  return { close };
+}

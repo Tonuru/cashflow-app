@@ -81,11 +81,39 @@ export function settingsView(root, rerender, { version, checkUpdate, restartSetu
         if (await confirmBox(msg, "Scollega")) { D.resetAll(); restartSetup(); }
       } }, "Scollega"))),
     h("div.card", {}, h("div.card-title", {}, "App"),
-      row("Versione installata", version, null), bUpd, upd,
+      row("Versione installata", version, h("button.btn.small-btn", { onclick: novitaSheet }, "✨ Novità")), bUpd, upd,
       h("details.help", {}, h("summary", {}, "Come installarla sull'iPhone"),
         h("ol", {}, h("li", {}, "Apri questa pagina con Safari."), h("li", {}, "Tocca Condividi (il quadrato con la freccia)."),
           h("li", {}, "«Aggiungi alla schermata Home»."), h("li", {}, "Apri Cashflow dall'icona: si comporta come un'app.")))));
   void rerender;
+}
+
+/** «✨ Novità»: cosa è cambiato nelle ultime 10 versioni, e il documento con tutto lo storico. */
+export async function novitaSheet() {
+  const s = sheet("✨ Cosa è cambiato");
+  fill(s.body, h("div.muted.center", {}, "Carico…"));
+  let j;
+  try {
+    const r = await fetch(`storico.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!r.ok) throw new Error(String(r.status));
+    j = await r.json();
+  } catch (e) {
+    fill(s.body, h("div.empty", {}, "Lo storico non è disponibile adesso (serve la connessione)."));
+    return;
+  }
+  const save = () => {
+    const blob = new Blob([j.html], { type: "text/html" });
+    const a = h("a", { href: URL.createObjectURL(blob), download: "Cashflow_storico.html" });
+    document.body.append(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+  fill(s.body, h("div.sub-title", {}, `Le ultime ${j.ultime.length} versioni`),
+    j.ultime.map((v) => h("div.card.novita", {}, h("div.card-title", {}, `Versione ${v.titolo}`),
+      h("ul", {}, v.punti.map((p) => h("li", { html: p.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>") }))))),
+    h("button.btn.wide", { onclick: save }, "⬇ Scarica tutto lo storico"),
+    h("div.small.muted.center", {}, "Un documento con tutte le versioni, da aprire o condividere."));
 }
 
 function otherCard(rerender) {

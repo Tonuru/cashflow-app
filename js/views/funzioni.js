@@ -2,7 +2,7 @@
 // fine anno (Michele), tasse da mettere da parte, soglia del forfettario, sedute da incassare (Tania).
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, toast, busy, sheet, fill, moneyColor } from "../ui.js";
+import { h, C, toast, busy, sheet, fill, moneyColor, dateField } from "../ui.js";
 import { semaforoLine } from "../semafori.js";
 
 const amountInput = (ph = "importo") => h("input", { type: "text", inputmode: "decimal", placeholder: ph, autocomplete: "off" });
@@ -68,7 +68,7 @@ export function obiettiviCard(kind, rerender) {
 
 function versaSheet(kind, o, rerender) {
   const s = sheet(`Versamento · ${o.nome}`);
-  const fData = h("input", { type: "date", value: M.todayIso() });
+  const fData = dateField(M.todayIso());
   const fImp = amountInput("es. 100");
   const fPrel = h("input", { type: "checkbox" });
   const fNote = h("input", { type: "text", placeholder: "facoltativa" });
@@ -84,7 +84,7 @@ function versaSheet(kind, o, rerender) {
     rerender();
   })());
   fill(s.body, semaforoLine(kind),
-    h("div.grid2", {}, h("label.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
+    h("div.grid2", {}, h("div.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
     h("label.check", {}, fPrel, " È un prelievo (soldi tolti dall'obiettivo)"),
     h("label.field", {}, h("span", {}, "Nota"), fNote), err, b);
   setTimeout(() => fImp.focus(), 300);
@@ -186,7 +186,7 @@ export function tasseCard(y, rerender) {
 
 function tassaSheet(x, rerender) {
   const s = sheet(`Pagata · ${x.scadenza.nome}`);
-  const fData = h("input", { type: "date", value: M.todayIso() });
+  const fData = dateField(M.todayIso());
   const fImp = amountInput();
   const rest = Math.max(0, x.previsto - x.pagato);
   if (rest) fImp.value = String(rest.toFixed(2)).replace(".", ",");
@@ -203,7 +203,7 @@ function tassaSheet(x, rerender) {
     rerender();
   })());
   fill(s.body, semaforoLine("personal"),
-    h("div.grid2", {}, h("label.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
+    h("div.grid2", {}, h("div.field", {}, h("span", {}, "Data"), fData), h("label.field", {}, h("span", {}, "Importo €"), fImp)),
     h("label.field", {}, h("span", {}, "Nota"), fNote), err, b);
 }
 
@@ -227,15 +227,15 @@ export function seduteCard(rerender) {
   if (!items.length) return null;
   return h("div.card", { "data-keep": "" }, h("div.card-title", {}, `⏳ Sedute da incassare (${items.reduce((a, x) => a + x.sedute.length, 0)})`),
     h("div.fx-list", {}, items.map((x) => h("div.fx-row", {},
-      h("div.fx-name", {}, h("b", {}, x.paziente), h("div.small", { style: { color: x.ritardo ? C.red : C.amber } },
+      h("div.fx-name", {}, h("b", {}, D.pazName(x.paziente)), h("div.small", { style: { color: x.ritardo ? C.red : C.amber } },
         `${x.sedute.length} sedut${x.sedute.length === 1 ? "a" : "e"} · ${M.fmtEur(x.totale)} · la più vecchia di ${x.giorni} giorni fa`)),
       h("button.btn.primary.small-btn", { type: "button", onclick: () => pagateSheet(x, rerender) }, x.sedute.length === 1 ? "Pagata" : "Pagate")))));
 }
 
 function pagateSheet(x, rerender) {
-  const s = sheet(`Sedute pagate · ${x.paziente}`);
+  const s = sheet(`Sedute pagate · ${D.pazName(x.paziente)}`);
   const checks = x.sedute.map((m) => ({ m, el: h("input", { type: "checkbox", checked: true }) }));
-  const fData = h("input", { type: "date", value: M.todayIso() });
+  const fData = dateField(M.todayIso());
   const b = h("button.btn.primary.wide", { type: "button" }, "Segna pagate");
   b.onclick = () => busy(b, (async () => {
     const rows = checks.filter((c) => c.el.checked).map((c) => c.m);
@@ -247,7 +247,7 @@ function pagateSheet(x, rerender) {
   })());
   fill(s.body, semaforoLine("personal"), h("div.muted.small", {}, "Quali sedute ti ha pagato?"),
     h("div.list", {}, checks.map(({ m, el }) => h("label.check", {}, el, ` ${M.fmtDate(m.data)} · ${M.fmtEur(m.importo)}`))),
-    h("label.field", {}, h("span", {}, "Pagate il"), fData), b);
+    h("div.field", {}, h("span", {}, "Pagate il"), fData), b);
 }
 
 /** Avvisi all'apertura: soglia del forfettario (una volta per gradino) e sedute da incassare da tempo. */
@@ -265,7 +265,7 @@ export function noticesFunzioni() {
   }
   if (!D.isMichele() && D.feature("sedute_attive")) {
     const late = M.daIncassare(allTania(), M.todayIso(), Number(D.settingOf("sedute_giorni") || 30)).filter((x) => x.ritardo);
-    if (late.length) out.push(["⏳ Sedute da incassare: " + late.slice(0, 3).map((x) => `${x.paziente} (${x.giorni} gg)`).join(", "), "warn"]);
+    if (late.length) out.push(["⏳ Sedute da incassare: " + late.slice(0, 3).map((x) => `${D.pazName(x.paziente)} (${x.giorni} gg)`).join(", "), "warn"]);
   }
   return out;
 }

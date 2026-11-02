@@ -2,7 +2,7 @@
 import { semaforoLine } from "./semafori.js";
 import * as D from "./data.js";
 import * as M from "./model.js";
-import { h, sheet, toast, busy, confirmBox, C, fill } from "./ui.js";
+import { h, sheet, toast, busy, confirmBox, C, fill, dateField } from "./ui.js";
 
 const TIPI = [
   { tipo: M.T.USCITA, label: "Spesa" },
@@ -14,8 +14,39 @@ const tipiFor = () => (D.isMichele() ? TIPI : [TIPI[0], { tipo: M.T.ENTRATA, lab
 
 function field(label, input, extra) {
   // dentro un <label> un tocco su un pulsante "rimbalza" sul primo pulsante: per i selettori a pulsanti si usa un <div>
-  const tag = input && input.classList && input.classList.contains("seg") ? "div.field" : "label.field";
+  const tag = input && input.classList && (input.classList.contains("seg") || input.classList.contains("datef"))
+    ? "div.field" : "label.field";
   return h(tag, {}, h("span", {}, label), input, extra);
+}
+/** «Aggiunte ora»: le voci appena salvate da questa finestra, con il totale e la ✕ per toglierne una. */
+export function addedList(kind) {
+  const list = h("div.added-list");
+  const tot = h("b", {}, M.fmtEur(0));
+  const el = h("div.added", { hidden: true }, h("div.added-head", {}, h("span", {}, "AGGIUNTE ORA"), h("span", {}, "Totale ", tot)),
+    list, h("div.small.muted", {}, "Arrivano al PC alla prossima sincronizzazione."));
+  let sum = 0;
+  const add = (row, { title, sub, color = C.red, count = true } = {}) => {
+    const amount = Number(row.importo || 0);
+    const x = h("button.added-x", { type: "button", "aria-label": "Togli questa voce" }, "✕");
+    const it = h("div.added-item", {}, h("div.added-main", {}, h("div.added-t", {}, title || row.descrizione || row.categoria || "Voce"),
+      h("div.added-s", {}, sub || "")), h("div.added-a", { style: { color } }, M.fmtEur(amount)), x);
+    x.onclick = async () => {
+      if (!(await confirmBox("Togliere questa voce appena aggiunta?", "Togli"))) return;
+      try {
+        await D.deleteMov(kind, Number(row.data.slice(0, 4)), row.id);
+        it.remove();
+        if (count) sum -= amount;
+        tot.textContent = M.fmtEur(sum);
+        if (!list.children.length) el.hidden = true;
+        toast("Voce tolta");
+      } catch (e) { toast(e.message, "error"); }
+    };
+    list.append(it);
+    if (count) sum += amount;
+    tot.textContent = M.fmtEur(sum);
+    el.hidden = false;
+  };
+  return { el, add };
 }
 function datalist(id, values) { return h("datalist", { id }, values.map((v) => h("option", { value: v }))); }
 function amountInput(v) {
@@ -122,7 +153,7 @@ export function movimentoSheet(row, { onDone } = {}) {
   let tipo = row.tipo || M.T.USCITA;
   const allMovs = D.allMovsEveryYear();
 
-  const fData = h("input", { type: "date", value: row.data || M.todayIso(), required: true });
+  const fData = dateField(row.data || M.todayIso(), { required: true });
   const fImp = amountInput(row.importo);
   const fCat = h("select");
   const fSub = h("input", { type: "text", list: "dl-sub", autocomplete: "off", value: row.sottocategoria || "",
@@ -136,6 +167,7 @@ export function movimentoSheet(row, { onDone } = {}) {
   const fTag = tagField(row, "dl-tag");
   const fFoto = photoField(row);
   const err = errBox();
+  const added = addedList("personal");
 
   const fillCats = () => {
     const cats = D.categorie(year).filter((c) => c.tipo === tipo).map((c) => c.categoria);
@@ -183,7 +215,9 @@ export function movimentoSheet(row, { onDone } = {}) {
         if (Object.keys(changes).length) await D.editMov("personal", year, row.id, changes);
         toast("Modifica salvata ✓", "ok");
       } else {
-        await D.addMov("personal", { ...noPhoto(v), origine: "iPhone" });
+        const full = await D.addMov("personal", { ...noPhoto(v), origine: "iPhone" });
+        added.add(full, { sub: [M.fmtDate(full.data).slice(0, 5), full.categoria, full.sottocategoria].filter(Boolean).join(" · "),
+          color: tipo === M.T.USCITA ? C.red : C.green });
         toast("Salvato ✓", "ok");
       }
       sendPhoto("personal", v);
@@ -215,11 +249,11 @@ export function movimentoSheet(row, { onDone } = {}) {
   fill(s.body, semaforoLine("personal"), pendingWarn(row),
     editing && row.origine === M.ORIGINE_ANNUALE ? null : seg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)),
-    field("Categoria", fCat), field("Sottocategoria", fSub, dlSub),
+    h("div.grid2", {}, field("Categoria", fCat), field("Sottocategoria", fSub, dlSub)),
     field("Descrizione", fDesc, datalist("dl-desc", M.suggestions(allMovs.filter((m) => m.tipo === tipo), "descrizione"))),
     h("div.grid2", {}, field("Metodo", fMet), field("Note", fNote)),
     fTag.el, fFoto.el,
-    err, actions);
+    err, actions, editing ? null : added.el);
   if (!editing) setTimeout(() => fImp.focus(), 300);
 }
 
@@ -233,7 +267,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   const s = sheet(editing ? "Modifica voce comune" : rimborso ? "Registra rimborso" : "Nuova spesa comune");
   let tipo = row.tipo || (rimborso ? M.T.RIMBORSO : M.T.SPESA);
   const me = D.meInComune();
-  const fData = h("input", { type: "date", value: row.data || M.todayIso() });
+  const fData = dateField(row.data || M.todayIso());
   const fImp = amountInput(row.importo ?? (rimborso ? rimborso[1].toFixed(2) : ""));
   const fCat = h("select", {}, h("option", { value: "" }, "—"),
     D.comuneCategorie(year).map((c) => h("option", { value: c.categoria }, c.categoria)));
@@ -314,6 +348,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   applyTipo();
   drawRimb();
   const err = errBox();
+  const added = addedList("comune");
 
   const read = () => {
     const imp = M.parseAmount(fImp.value);
@@ -347,7 +382,11 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
         const changes = {};
         for (const [k, x] of Object.entries(noPhoto(v))) if ((row[k] ?? "") !== x) changes[k] = x;
         if (Object.keys(changes).length) await D.editMov("comune", year, row.id, changes);
-      } else await D.addMov("comune", noPhoto(v));
+      } else {
+        const full = await D.addMov("comune", noPhoto(v));
+        added.add(full, { sub: [M.fmtDate(full.data).slice(0, 5), full.tipo, full.pagato_da].filter(Boolean).join(" · "),
+          color: tipo === M.T.SPESA ? C.violet : C.accent, count: tipo === M.T.SPESA });
+      }
       sendPhoto("comune", v);
       toast("Salvato ✓", "ok");
       onDone?.();
@@ -375,7 +414,7 @@ export function comuneSheet(row, { onDone, rimborso } = {}) {
   fill(s.body, semaforoLine("comune"), pendingWarn(row), rimborso ? null : tipoSeg,
     h("div.grid2", {}, field("Data", fData), field("Importo €", fImp)), payLbl, rimbInfo, spesaOnly,
     field("Descrizione", fDesc, datalist("dl-cdesc", M.suggestions(cm, "descrizione"))), field("Note", fNote),
-    fTag.el, fFoto.el, err, actions);
+    fTag.el, fFoto.el, err, actions, editing ? null : added.el);
   if (!editing && !rimborso) setTimeout(() => fImp.focus(), 300);
 }
 
@@ -392,7 +431,7 @@ export function movRow(m, { onTap, sign = "−", showCat = true } = {}) {
   const v = Number(m.importo || 0);
   const neg = sign === "−" || v < 0;
   const color = comune ? C.violet : neg ? C.red : C.green;
-  const cat = [m.categoria, m.sottocategoria].filter(Boolean).join(" · ");
+  const cat = [m.categoria, M.isProfIncome(m) ? D.pazName(m.sottocategoria) : m.sottocategoria].filter(Boolean).join(" · ");
   return h("button.item" + (comune ? ".comune" : "") + (m._pending ? ".pending" : ""),
     { type: "button", onclick: () => onTap?.(m) },
     h("div.item-main", {}, h("div.item-title", {}, (m.descrizione || cat || "—") + (m.allegato ? " 📎" : "")

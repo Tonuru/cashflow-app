@@ -451,3 +451,49 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .iv-grid td.n { text-align: right; } .iv-grid td.b { font-weight: 700; } .iv-grid td.neg { color: var(--red, #FF6B6B); }
 .iv-grid .iv-rn { position: sticky; left: 0; background: var(--header); color: var(--muted); text-align: right; z-index: 2; }
 a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+/* ------------------------------------------------ data con calendario («A · Classico») */
+.datef { display: flex; gap: 6px; align-items: stretch; }
+.datef-in { flex: 1; min-width: 0; }
+.datef-in.bad { border-color: var(--red); background: var(--red-soft); }
+.datef-btn { width: 46px; flex: none; border-radius: 10px; background: #253047; border: 1px solid #3C5A8E;
+  display: flex; align-items: center; justify-content: center; }
+.datef-btn:active { background: #2F4D86; }
+.cal-wrap { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.45); display: flex; align-items: center;
+  justify-content: center; opacity: 0; transition: opacity .18s; padding: 16px; }
+.cal-wrap.open { opacity: 1; }
+.cal { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+  padding: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.6); transform: scale(.96); transition: transform .18s; }
+.cal-wrap.open .cal { transform: none; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-ar { width: 36px; height: 36px; border-radius: 18px; background: var(--input); color: #D3DAE3; font-size: 20px; }
+.cal-title { font-weight: 800; font-size: 17px; padding: 6px 12px; border-radius: 10px; }
+.cal-title:active { background: #253047; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.cal-wd { color: var(--muted); font-size: 12px; font-weight: 700; padding: 4px 0; }
+.cal-wd.we { color: #FF9A9A; }
+.cal-d { padding: 9px 0; border-radius: 10px; font-size: 15px; color: var(--text); }
+.cal-d.we { color: #FF9A9A; } .cal-d.out { color: #4A5566; }
+.cal-d.today { box-shadow: inset 0 0 0 1.6px var(--accent); }
+.cal-d.sel { background: var(--accent); color: #fff; font-weight: 800; box-shadow: none; }
+.cal-months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 6px 0; }
+.cal-m { padding: 14px 0; border-radius: 12px; background: var(--input); font-size: 15px; }
+.cal-m.on { background: #2F4D86; color: #fff; font-weight: 800; outline: 1px solid var(--accent); }
+.cal-foot { display: flex; gap: 6px; margin-top: 10px; }
+.cal-chip { border-radius: 16px; padding: 7px 14px; font-size: 14px; background: var(--input); border: 1px solid var(--border);
+  color: #D3DAE3; }
+.cal-chip.on { background: #2F4D86; border-color: var(--accent); color: #fff; font-weight: 700; }
+
+/* ------------------------------------------------ «Aggiunte ora» nelle finestre di inserimento */
+.added { margin-top: 14px; background: #141920; border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+.added-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; font-weight: 800;
+  letter-spacing: .06em; margin-bottom: 8px; } .added-head b { color: var(--text); font-size: 14px; letter-spacing: 0; }
+.added-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.added-item { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 10px; }
+.added-main { flex: 1; min-width: 0; } .added-t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.added-s { color: var(--muted); font-size: 12px; } .added-a { font-weight: 800; }
+.added-x { width: 28px; height: 28px; border-radius: 14px; color: var(--muted); font-size: 14px; }
+.added-x:active { background: var(--red-soft); color: var(--red); }
+.paz-eye { display: flex; align-items: center; gap: 8px; margin: -2px 0 10px; color: var(--muted); font-size: 14px; }
+.card.novita ul { margin: 4px 0 0; padding-left: 20px; } .card.novita li { margin: 4px 0; line-height: 1.35; }

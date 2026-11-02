@@ -9,7 +9,7 @@ function timeout(ms) { return new Promise((_, rej) => setTimeout(() => rej(new E
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.endsWith("version.json")) return;
+  if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.endsWith("version.json") || url.pathname.endsWith("storico.json")) return;
   if (url.pathname.includes("/icons/")) return;     // le icone le prende iPhone direttamente
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
