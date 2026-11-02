@@ -293,3 +293,46 @@ export function calendarPop(iso, onPick) {
   requestAnimationFrame(() => wrap.classList.add("open"));
   return { close };
 }
+
+// ---------------------------------------------------------------- prima lettera maiuscola dappertutto
+// Ogni riga di testo (titoli, sottotitoli, bottoni, voci…) comincia con la maiuscola: «entrate − spese» → «Entrate − spese».
+const CAP_BLOCK = new Set(["DIV", "BUTTON", "LI", "H1", "H2", "H3", "H4", "P", "TD", "TH", "OPTION", "SUMMARY", "LABEL"]);
+const CAP_RE = /^([\s«("'¿¡]|\p{Extended_Pictographic}|️)*\p{Ll}/u;
+function capText(t) {
+  const first = t.trimStart().split(" ")[0];
+  if (/:\/\/|@|\/|\\|_/.test(first)) return t;
+  return t.replace(CAP_RE, (m) => m.slice(0, -1) + m.slice(-1).toUpperCase());
+}
+function firstText(el) {
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.trim()) return n;
+  return null;
+}
+export function capitalizeAll(root = document.body) {
+  const els = root.querySelectorAll ? root.querySelectorAll("div, button, li, h1, h2, h3, h4, p, td, th, option, summary, label, span, b") : [];
+  for (const el of [root, ...els]) {
+    if (!el.tagName || el.closest("svg, .nocap")) continue;
+    if (el.tagName === "SPAN" || el.tagName === "B") {
+      // uno <span> è una «cosa» a sé solo se sta in una riga a blocchi (flex/griglia), non in mezzo a una frase
+      const d = el.parentElement ? getComputedStyle(el.parentElement).display : "";
+      if (!/flex|grid/.test(d)) continue;
+    } else if (!CAP_BLOCK.has(el.tagName)) continue;
+    const n = firstText(el);
+    if (!n) continue;
+    const v = n.nodeValue;
+    const c = capText(v);
+    if (c !== v && el.textContent.trimStart().startsWith(v.trimStart())) n.nodeValue = c;
+  }
+  for (const i of root.querySelectorAll ? root.querySelectorAll("input[placeholder]") : []) {
+    const p = i.getAttribute("placeholder");
+    const c = capText(p);
+    if (c !== p) i.setAttribute("placeholder", c);
+  }
+}
+let capQueued = false;
+export function watchCapitals() {
+  const run = () => { capQueued = false; capitalizeAll(document.body); };
+  new MutationObserver(() => { if (!capQueued) { capQueued = true; requestAnimationFrame(run); } })
+    .observe(document.body, { childList: true, subtree: true, characterData: true });
+  run();
+}

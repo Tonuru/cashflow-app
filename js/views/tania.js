@@ -67,9 +67,9 @@ export function renderMese(root, rerender, view) {
   const stats = h("div.stats.two", {},
     stat("Entrate del mese", M.fmtEur(t.entrate), C.green, `${M.MESI[m - 1]} ${y}`),
     stat("Spese", M.fmtEur(t.spese), C.red, "senza le spese della professione"),
-    stat("Incasso professione", M.fmtEur(p.incasso), C.green, `${p.sedute} sedute · tasse ${M.fmtEur(p.tasse)}`,
+    stat("Incasso della professione", M.fmtEur(p.incasso), C.green, `${p.sedute} sedute · tasse ${M.fmtEur(p.tasse)}`,
       () => jump("sec-sedute", view, rerender)),
-    stat("Netto professione", M.fmtEur(p.netto, true), moneyColor(p.netto), `stipendio di ${lower(nm)}`));
+    stat("Netto della professione", M.fmtEur(p.netto, true), moneyColor(p.netto), `stipendio di ${lower(nm)}`));
 
   // pazienti del mese (la griglia del vecchio file)
   const paz = M.pazienti(movs, y, m);
@@ -270,11 +270,11 @@ export function renderAnno(root, rerender, view, goMonth) {
   const top = h("div.page-top", {}, monthNav(y, 1, (yy) => { view.y = yy; rerender(); }, { yearOnly: true }));
   const hero = heroBox(`Rimane · ${y}`, tot.rim, tot.ent, "entrate − spese");
   const stats = h("div.stats.two", {},
-    stat("Incasso professione · anno", M.fmtEur(tot.inc), C.green, `netto professione ${M.fmtEur(tot.net, true)}`),
-    stat("Tasse e contributi · anno", M.fmtEur(tot.tax), C.red,
+    stat("Incasso della professione", M.fmtEur(tot.inc), C.green, `netto professione ${M.fmtEur(tot.net, true)}`),
+    stat("Tasse e contributi", M.fmtEur(tot.tax), C.red,
       `coeff. ${pct(ind.coef)} · ENPAP ${pct(ind.sogg)} + ${pct(ind.integr)} · imposta ${pct(ind.aliq)}`),
-    stat("Entrate · anno", M.fmtEur(tot.ent), C.green, String(y)),
-    stat("Spese · anno", M.fmtEur(tot.spe), C.red, String(y)));
+    stat("Entrate dell'anno", M.fmtEur(tot.ent), C.green, String(y)),
+    stat("Spese dell'anno", M.fmtEur(tot.spe), C.red, String(y)));
 
   const fmtCell = (v, kind, r) => {
     if (kind === "prog") return r.has || r.past ? [M.fmtEur(v, true), moneyColor(v)] : ["—", C.muted];

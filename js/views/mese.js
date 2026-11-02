@@ -8,8 +8,8 @@ import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 
 export const MODI = [
   ["Stipendio", "Rimane", "stipendio − spese"],
-  ["Stipendio + investimenti", "Rimane +inv", "stipendio + investimenti − spese"],
-  ["Stipendio + invest. + extra", "Rimane tot", "tutte le entrate − spese"],
+  ["Stipendio + investimenti", "Rimane con invest.", "stipendio + investimenti − spese"],
+  ["Stipendio + invest. + extra", "Rimane con tutto", "tutte le entrate − spese"],
 ];
 export const view = { y: new Date().getFullYear(), m: new Date().getMonth() + 1, mode: 0, open: {} };
 try { view.mode = Number(localStorage.getItem("cf.mode") || 0) % 3; } catch { /* */ }

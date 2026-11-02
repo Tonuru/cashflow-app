@@ -1,1 +1,1 @@
-{ "version": "1.16.0", "notes": "Calendario nuovo con il tasto 📅 accanto a ogni data (tocca il mese per l'elenco dei mesi, Oggi e Ieri in fondo); nelle finestre di inserimento l'elenco «Aggiunte ora» con la ✕ per togliere una voce; per Tania i nomi dei pazienti nascosti all'apertura (spunta «Mostra i nomi»); «✨ Novità» in Impostazioni con le ultime 10 versioni e lo storico da scaricare." }
+{ "version": "1.16.1", "notes": "Nomi più chiari e la prima lettera sempre maiuscola in tutta l'app; tolto «Cosa è cambiato» dai Dettagli." }

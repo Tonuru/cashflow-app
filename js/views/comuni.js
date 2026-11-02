@@ -41,7 +41,7 @@ export function render(root, rerender) {
   const monthCards = h("div.stats.two", {},
     h("div.stat", {}, h("div.stat-t", {}, "Spese comuni del mese"), h("div.stat-v", {}, M.fmtEur(meseTot)),
       h("div.stat-s", {}, `${M.MESI[m - 1]} ${y}`)),
-    h("div.stat", {}, h("div.stat-t", {}, "Mia quota del mese"),
+    h("div.stat", {}, h("div.stat-t", {}, "La mia parte del mese"),
       key ? h("div.stat-v", { style: { color: C.accent } }, M.fmtEur(M.comuneQuotaMonth(movs, key, y, m)))
         : h("div.stat-s", {}, `Il tuo nome (${D.profile().utente}) non è tra le persone del file comune`)));
 

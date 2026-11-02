@@ -40,9 +40,6 @@ function yearRimane(y) {
 
 export function render(root, rerender, go) {
   const [y, m] = ymNow();
-  const [py, pm] = prevYm();
-  const cam = M.cambiamenti(D.allMovsEveryYear(), py, pm);
-  const nCam = M.cambiamentiRighe(cam, 20).length;
   const cs = comuneSummary();
   const evs = M.eventiElenco(D.allMovsEveryYear());
   const obs = obiettiviStati("personal").concat(obiettiviStati("comune"));
@@ -54,12 +51,9 @@ export function render(root, rerender, go) {
     h("div.d-head", {}, h("b", {}, "Dettagli"), h("div.muted.small", {}, "tutto il resto, quando serve")),
     group("I MIEI CONTI",
       row("mese", "🗓️", "#1E2D4A", "Mese per mese", D.isMichele() ? "voci, categorie, spese fisse" : "sedute, entrate, spese",
-        M.MESI[m - 1].toLowerCase(), null, go),
+        M.MESI[m - 1], null, go),
       row("anno", "📊", "#16352A", "Panoramica dell'anno", D.isMichele() ? "grafico, tabella dei mesi" : "tasse, soglia, mesi",
         M.fmtEur(yr, true).replace(",00 €", " €"), yr >= 0 ? C.green : C.red, go),
-      row("cambiato", "🔎", "#3A2E14", "Cosa è cambiato",
-        nCam ? `${nCam} ${nCam === 1 ? "novità" : "novità"} a ${M.MESI[pm - 1].toLowerCase()}` : `niente di particolare a ${M.MESI[pm - 1].toLowerCase()}`,
-        null, null, go),
       Inv.available() ? (() => { const s = Inv.summary(); return row("investimenti", "📈", "#16352A", "Investimenti",
         s.sub, s.text, C.green, go); })() : null),
     cs ? group(other ? `INSIEME A ${other.toUpperCase()}` : "CONTO COMUNE",

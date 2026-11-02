@@ -1,6 +1,6 @@
 // Avvio dell'app e navigazione tra le schede.
 import * as D from "./data.js";
-import { h, toast, fill, foldCards } from "./ui.js";
+import { h, toast, fill, foldCards, watchCapitals } from "./ui.js";
 import * as Mese from "./views/mese.js";
 import * as Anno from "./views/anno.js";
 import * as Comuni from "./views/comuni.js";
@@ -13,7 +13,7 @@ import { notices } from "./views/mensile.js";
 import { noticesFunzioni } from "./views/funzioni.js";
 import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.16.0";
+export const APP_VERSION = "1.16.1";
 
 const TABS = [
   { id: "home", label: "Home", icon: "🏠" },
@@ -228,4 +228,5 @@ function wire() {
   setInterval(() => { if (document.visibilityState === "visible") D.sync(); }, 60000);
 }
 
+watchCapitals();
 boot();

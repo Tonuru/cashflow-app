@@ -50,8 +50,8 @@ export function render(root, rerender, goMonth) {
   const prevT = M.yearTable(D.allMovs(y - 1), y - 1, true, true);
   const hasPrev = prevT.months.some((x) => x.has);
   const stats = h("div.stats.two", {},
-    h("div.stat", {}, h("div.stat-t", {}, `${mich ? MODI[mode][0] : "Entrate"} · anno`), h("div.stat-v", { style: { color: C.green } }, M.fmtEur(en))),
-    h("div.stat", {}, h("div.stat-t", {}, "Spese · anno"), h("div.stat-v", { style: { color: C.red } }, M.fmtEur(tot.sp))),
+    h("div.stat", {}, h("div.stat-t", {}, `${mich ? MODI[mode][0] : "Entrate"} dell'anno`), h("div.stat-v", { style: { color: C.green } }, M.fmtEur(en))),
+    h("div.stat", {}, h("div.stat-t", {}, "Spese dell'anno"), h("div.stat-v", { style: { color: C.red } }, M.fmtEur(tot.sp))),
     h("div.stat", {}, h("div.stat-t", {}, "Media al mese"),
       nmesi ? [h("div.stat-v", {}, M.fmtEur(tot.sp / nmesi)), h("div.stat-s", {}, `spese · rimane ${M.fmtEur(rv / nmesi, true)}`)]
         : h("div.stat-v", {}, "—")),
