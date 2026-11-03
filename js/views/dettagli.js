@@ -50,7 +50,7 @@ export function render(root, rerender, go) {
   fill(root,
     h("div.d-head", {}, h("b", {}, "Dettagli"), h("div.muted.small", {}, "tutto il resto, quando serve")),
     group("I MIEI CONTI",
-      row("mese", "🗓️", "#1E2D4A", "Mese per mese", D.isMichele() ? "voci, categorie, spese fisse" : "sedute, entrate, spese",
+      row("mese", "🗓️", "#1E2D4A", D.isMichele() ? "Il mese in tasca" : "Mese per mese", D.isMichele() ? "voci, categorie, spese fisse" : "sedute, entrate, spese",
         M.MESI[m - 1], null, go),
       row("anno", "📊", "#16352A", "Panoramica dell'anno", D.isMichele() ? "grafico, tabella dei mesi" : "tasse, soglia, mesi",
         M.fmtEur(yr, true).replace(",00 €", " €"), yr >= 0 ? C.green : C.red, go),
