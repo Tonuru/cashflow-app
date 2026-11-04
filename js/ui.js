@@ -84,7 +84,8 @@ export function monthNav(y, m, onPick, { yearOnly = false } = {}) {
   const label = yearOnly ? String(y) : `${MESI[m - 1]} ${y}`;
   return h("div.monthnav", {},
     h("button.nav", { onclick: () => shift(-1), "aria-label": "Precedente" }, "‹"),
-    h("button.pill", { onclick: () => pickMonth(y, m, onPick, yearOnly) }, label, h("span.cal", {}, " 📅")),
+    h("button.pill", { onclick: () => pickMonth(y, m, onPick, yearOnly), "aria-label": `${label}: scegli dal calendario` },
+      h("span.pill-t", {}, label), h("span.pill-cal", { "aria-hidden": "true" }, "📅")),
     h("button.nav", { onclick: () => shift(1), "aria-label": "Successivo" }, "›"));
 }
 

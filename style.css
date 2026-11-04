@@ -64,7 +64,11 @@ nav.tabs button.on { color: var(--accent); } .ti { font-size: 20px; filter: gray
 .nav { width: 44px; height: 44px; border-radius: 12px; background: var(--input); border: 1px solid var(--border); font-size: 24px; line-height: 1; }
 .nav.small { width: 36px; height: 56px; background: rgba(255,255,255,.04); }
 .pill { background: var(--accent); color: #fff; font-weight: 800; font-size: 20px; border-radius: 12px; padding: 8px 18px; min-width: 190px; text-align: center; }
-.pill.static { min-width: 120px; } .pill .cal { font-size: 15px; }
+.pill.static { min-width: 120px; }
+/* il mese e, a destra dentro il bottone, l'icona del calendario (prima era una «.cal» e prendeva lo stile del
+   calendario a comparsa, finendo sopra la scritta) */
+button.pill { display: inline-flex; align-items: center; justify-content: center; gap: 10px; white-space: nowrap; }
+.pill-cal { font-size: 15px; line-height: 1; background: rgba(255,255,255,.2); border-radius: 8px; padding: 5px 6px; }
 .mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
 .mcell { background: var(--input); border: 1px solid var(--border); border-radius: 10px; padding: 14px 0; font-weight: 600; }
 .mcell.on { background: var(--accent); border-color: var(--accent); color: #fff; }
