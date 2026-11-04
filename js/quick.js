@@ -433,7 +433,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
       fill(metIn, h("option", { value: "" }, "— nessuno —"), metodi.map((x) => h("option", { value: x }, x)));
       metIn.value = st.metodo;
       const photo = () => {
-        if (!D.photosOk()) { toast("Per le foto serve lo script nuovo nel foglio Google (dal PC: Impostazioni → App per iPhone).", "error"); return; }
+        if (!D.photosOk()) { toast("Per le foto serve lo script nuovo nel foglio Google (dal PC: Impostazioni → Telefono e altro PC).", "error"); return; }
         fileIn.click();
       };
       infoRow = h("div.qa-boxes", {},

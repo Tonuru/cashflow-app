@@ -13,9 +13,11 @@ import * as Inv from "./investimenti.js";
 const ymNow = () => { const t = M.todayIso(); return [Number(t.slice(0, 4)), Number(t.slice(5, 7))]; };
 const prevYm = () => { const [y, m] = ymNow(); return m === 1 ? [y - 1, 12] : [y, m - 1]; };
 
+// stessi nomi del programma sul PC («Il mio mese» per Michele, «Spese comuni», «Patrimonio»)
 export const PAGES = {
-  mese: "Mese per mese", anno: "Panoramica", comuni: "Conto comune", eventi: "Eventi", obiettivi: "Obiettivi",
-  scadenze: "Scadenze", cambiato: "Cosa è cambiato", investimenti: "Investimenti",
+  get mese() { return D.isMichele() ? "Il mio mese" : "Mese per mese"; },
+  anno: "Panoramica", comuni: "Spese comuni", eventi: "Eventi", obiettivi: "Obiettivi",
+  scadenze: "Scadenze", cambiato: "Cosa è cambiato", investimenti: "Patrimonio",
 };
 
 function row(id, icon, bg, title, sub, val, color, go) {
@@ -52,12 +54,12 @@ export function render(root, rerender, go) {
     group("I MIEI CONTI",
       row("mese", "🗓️", "#1E2D4A", D.isMichele() ? "Il mio mese" : "Mese per mese", D.isMichele() ? "voci, categorie, spese fisse" : "sedute, entrate, spese",
         M.MESI[m - 1], null, go),
-      row("anno", "📊", "#16352A", "Panoramica dell'anno", D.isMichele() ? "grafico, tabella dei mesi" : "tasse, soglia, mesi",
+      row("anno", "📊", "#16352A", "Panoramica", D.isMichele() ? "grafico, tabella dei mesi" : "tasse, soglia, mesi",
         M.fmtEur(yr, true).replace(",00 €", " €"), yr >= 0 ? C.green : C.red, go),
-      Inv.available() ? (() => { const s = Inv.summary(); return row("investimenti", "📈", "#16352A", "Investimenti",
+      Inv.available() ? (() => { const s = Inv.summary(); return row("investimenti", "🏦", "#16352A", "Patrimonio",
         s.sub, s.text, C.green, go); })() : null),
-    cs ? group(other ? `INSIEME A ${other.toUpperCase()}` : "CONTO COMUNE",
-      row("comuni", "🤝", "#2A1E44", "Conto comune", "voci, rimborsi, chiudi il mese", cs.text, cs.color, go)) : null,
+    cs ? group(other ? `INSIEME A ${other.toUpperCase()}` : "SPESE COMUNI",
+      row("comuni", "🤝", "#2A1E44", "Spese comuni", "voci, rimborsi, chiudi il mese", cs.text, cs.color, go)) : null,
     group("ALTRO",
       row("eventi", "🎒", "#1E2D4A", "Eventi", evs.length ? evs.slice(0, 2).map((e) => e.nome).join(" · ") : "nessuna etichetta usata",
         evs.length ? M.fmtEur(evs[0].spese).replace(",00 €", " €") : null, null, go),

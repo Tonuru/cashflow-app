@@ -56,7 +56,7 @@ export function render(root, rerender) {
   const head = h("div.card.iv-head", { "data-keep": "" },
     h("div.row.between", {}, h("b", {}, "🔒 Solo da guardare"), h("span.iv-file", {}, d.file || "")),
     h("div.small.muted", {}, d.modificato ? `File salvato il ${when(d.modificato)} · letto dal PC il ${when(d.letto)}.` : ""),
-    h("div.small.muted", {}, "Per modificare usa l'app Investimenti sul PC (in Cashflow: Investimenti → «Modifica in Investimenti»)."));
+    h("div.small.muted", {}, "Per modificare usa l'app Investimenti sul PC (in Cashflow: Patrimonio → «Modifica in Investimenti»)."));
   if (d.errore) {
     fill(root, head, h("div.card", { "data-keep": "" }, h("p", { style: { color: C.amber } }, `⚠️ ${d.errore}`)));
     return;

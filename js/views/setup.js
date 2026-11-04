@@ -26,7 +26,7 @@ export function wizard(root, done) {
     h("div.wiz-head", {}, h("div.logo", {}, h("img", { src: "icons/logo.png", alt: "" })), h("h1", {}, "Cashflow")),
     h("div.card.wiz", {},
       h("h2", {}, "Collega il telefono"),
-      h("p", {}, "Sul PC apri Cashflow → Impostazioni → «App per iPhone» e copia il codice di collegamento "
+      h("p", {}, "Sul PC apri Cashflow → Impostazioni → «Telefono e altro PC» e copia il codice di collegamento "
         + "(inizia con CF1.). Mandatelo sul telefono e incollalo qui."),
       h("label.field", {}, h("span", {}, "Codice di collegamento"), code),
       h("label.field", {}, h("span", {}, "Nome di questo telefono"), dev),
@@ -125,7 +125,7 @@ function otherCard(rerender) {
     ? (D.status.otherError ? `⚠️ Collegato, ma ora non risponde: ${D.status.otherError}`
       : `Collegato: vedi subito le spese comuni che ${who} aggiunge dal suo telefono, anche con i PC spenti `
         + `(${D.otherPendingCount()} non ancora negli Excel).`)
-    : `Incolla il codice del telefono di ${who} (lo trova nel suo Cashflow sul PC → Impostazioni → App per iPhone → `
+    : `Incolla il codice del telefono di ${who} (lo trova nel suo Cashflow sul PC → Impostazioni → Telefono e altro PC → `
       + "Copia) per vedere subito le sue spese comuni, anche quando i PC sono spenti.";
   fill(card, card.firstChild, h("p.muted.small", {}, msg),
     on ? h("button.btn.wide.danger", { onclick: async () => {
@@ -180,7 +180,7 @@ function editCode(rerender) {
     rerender();
   })(), "Controllo…");
   fill(s.body, h("p.muted", {}, "Serve solo se hai ricollegato il foglio Google dal PC. Il codice si copia da "
-    + "Cashflow sul PC → Impostazioni → App per iPhone."), h("label.field", {}, h("span", {}, "Nuovo codice"), code), err, b);
+    + "Cashflow sul PC → Impostazioni → Telefono e altro PC."), h("label.field", {}, h("span", {}, "Nuovo codice"), code), err, b);
 }
 
 function securityCard(rerender) {
