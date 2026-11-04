@@ -1,8 +1,9 @@
-// Mese per mese: rimanenze, entrate, spese per categoria, elenchi delle voci.
+// Il mio mese (Michele, stile «T1 · Come sul PC»): quanto rimane, categorie, voci del mese in due colonne.
+// Per Tania la pagina è in tania.js.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, moneyColor, monthNav, donut, dots, fill } from "../ui.js";
-import { movimentoSheet, vociSheet, movRow, comuneSheet } from "../forms.js";
+import { h, C, monthNav, fill, sheet } from "../ui.js";
+import { movimentoSheet, vociSheet, comuneSheet } from "../forms.js";
 import * as Tania from "./tania.js";
 import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 
@@ -18,8 +19,7 @@ export function setMode(i) { view.mode = (i + 3) % 3; try { localStorage.setItem
 export function render(root, rerender) {
   if (!D.isMichele()) { Tania.renderMese(root, rerender, view); return; }
   const { y, m } = view;
-  const mich = D.isMichele();
-  const mode = mich ? view.mode : 2;
+  const mode = view.mode;
   const movs = D.allMovs(y);
   const t = M.monthTotals(movs, y, m);
   const pt = t.per_tipo;
@@ -32,76 +32,82 @@ export function render(root, rerender) {
 
   const top = h("div.page-top", {}, monthNav(y, m, (yy, mm) => { view.y = yy; view.m = mm; rerender(); }));
 
-  // riquadro principale: rimane (verde/rosso) con le frecce per cambiare cosa conta
-  const hero = h("div.hero" + (rs > 0.004 ? ".pos" : rs < -0.004 ? ".neg" : ""), {},
-    mich ? h("button.nav.small", { onclick: () => { setMode(mode - 1); rerender(); } }, "‹") : null,
-    h("div.hero-mid", {},
-      h("div.hero-title", {}, mich ? MODI[mode][1] : "Rimane"),
-      h("div.hero-val", { style: { color: moneyColor(rs) } }, M.fmtEur(rs, true)),
-      h("div.hero-sub", {}, pc ? h("b", { style: { color: moneyColor(rs) } }, pc) : null, mich ? dots(3, mode) : null),
-      h("div.hero-cap", {}, mich ? MODI[mode][2] : "entrate − spese")),
-    mich ? h("button.nav.small", { onclick: () => { setMode(mode + 1); rerender(); } }, "›") : null);
+  // «T1 · Come sul PC»: fascia colorata con quanto rimane, la barra speso/rimane ed Entrato · Uscito · Rimane
+  const spentPct = en > 0 ? Math.min(100, (t.uscite / en) * 100) : (t.uscite > 0 ? 100 : 0);
+  const chip = (title, val) => h("div.mh-chip", {}, h("div", {}, title), h("b", {}, val));
+  const hero = h("div.mhero" + (rs < -0.004 ? ".neg" : ""), { "data-keep": "" },
+    h("div.mh-t", {}, `TI RIMANE · ${MODI[mode][2].toUpperCase()}`),
+    h("div.mh-v", {}, M.fmtEur(rs, true)),
+    h("div.mh-split", {}, h("i", { style: { width: `${spentPct.toFixed(1)}%` } })),
+    h("div.mh-chips", {}, chip("Entrato", M.fmtEur(en)), chip("Uscito", M.fmtEur(t.uscite)),
+      chip("Rimane", pc ? pc.replace(/ rimane$/, "") : "—")));
+  const seg = h("div.seg.mseg", {}, ["Stipendio", "+ Investimenti", "Tutto"].map((name, i) =>
+    h("button" + (i === mode ? ".on" : ""), { onclick: () => { setMode(i); rerender(); } }, name)));
 
-  const three = mich ? h("div.three", {}, MODI.map(([, name], i) => h("button.mini" + (i === mode ? ".on" : ""),
-    { onclick: () => { setMode(i); rerender(); } },
-    h("div.mini-t", {}, name), h("div.mini-v", { style: { color: moneyColor(rim[i]) } }, M.fmtEur(rim[i], true)),
-    h("div.mini-p", {}, M.pctText(rim[i], ent[i]))))) : null;
-
-  const stat = (title, v, color, onclick) => h("button.stat", { onclick },
-    h("div.stat-t", {}, title), h("div.stat-v", { style: { color } }, M.fmtEur(v)));
-  const entrate = h("div.card", { "data-keep": "" }, h("div.card-title", {}, "Entrate del mese"),
-    h("div.stats" + (mich ? "" : ".two"), {},
-      mich ? stat("Stipendio", st, C.green, () => jump("sec-stip", rerender)) : null,
-      stat(mich ? "Extra" : "Entrate", ex, C.green, () => jump("sec-extra", rerender)),
-      mich ? stat("Investimenti", iv, iv >= 0 ? C.green : C.red, () => jump("sec-inv", rerender)) : null));
-
-  // spese per categoria: ciambella + elenco con le sottocategorie (tocco = voci)
+  // dove sono andati: categorie con la barra (tocco = le voci della categoria)
   const cols = M.colors(D.categorie(y));
   const piv = M.categoryPivot(movs, y, m);
-  const showVoci = (cat, sub) => {
-    const rows = M.filterMovs(movs, { year: y, month: m, tipo: M.T.USCITA, categoria: cat, sotto: sub });
-    vociSheet(sub != null ? `${cat} · ${sub || "senza specifica"}` : cat, rows, { onTap: (x) => openMov(x, rerender) });
+  const showVoci = (cat) => {
+    const rows = M.filterMovs(movs, { year: y, month: m, tipo: M.T.USCITA, categoria: cat });
+    vociSheet(cat, rows, { onTap: (x) => openMov(x, rerender) });
   };
-  const spese = h("div.card", {},
-    h("div.card-title.row.between", {}, h("span", {}, "Spese del mese"),
-      h("span.big-red", {}, M.fmtEur(t.uscite))),
-    piv.length ? h("div.donut-wrap", {}, donut(piv.map(([c, v]) => ({ name: c, value: v, color: cols[c] || "#9AA3AE",
-      onclick: () => showVoci(c) })), t.uscite, { center: M.fmtEur(t.uscite) })) : h("div.empty", {}, "Nessuna spesa in questo mese."),
-    h("div.pivot", {}, piv.map(([c, v, subs]) => h("div.pv", {},
-      h("button.pv-cat", { onclick: () => showVoci(c) },
-        h("i.sw", { style: { background: cols[c] || "#9AA3AE" } }), h("span.pv-name", {}, c),
-        h("span.pv-pct", {}, t.uscite ? `${Math.round((v / t.uscite) * 100)}%` : ""), h("span.pv-v", {}, M.fmtEur(v))),
-      subs.filter(([s]) => s || subs.length > 1).map(([s, sv]) => h("button.pv-sub", { onclick: () => showVoci(c, s) },
-        h("span.pv-name", {}, s || "senza specifica"), h("span.pv-v", {}, M.fmtEur(sv))))))));
+  const maxCat = piv.length ? piv[0][1] : 0;
+  const cats = h("div.card", { "data-keep": "" },
+    h("div.card-title.row.between", {}, h("span", {}, "Dove sono andati"),
+      h("span.muted.small", {}, piv.length ? "tocca per le voci" : "")),
+    piv.length ? piv.map(([c, v, subs]) => {
+      const col = cols[c] || "#9AA3AE";
+      const sub = subs.filter(([x]) => x).slice(0, 3).map(([x, sv]) => `${x} ${M.fmtEur(sv).replace(",00 €", " €")}`).join(" · ");
+      return h("button.mc-row", { onclick: () => showVoci(c) },
+        h("i.mc-ic", { style: { background: col + "33", color: col } }, (c || "?").slice(0, 1).toUpperCase()),
+        h("div.mc-mid", {}, h("div.mc-top", {}, h("span.mc-name", {}, c),
+          h("span.mc-pct", {}, t.uscite ? `${Math.round((v / t.uscite) * 100)}%` : "")),
+        h("div.mc-bar", {}, h("i", { style: { width: `${maxCat ? (v / maxCat) * 100 : 0}%`, background: col } })),
+        sub ? h("div.mc-sub", {}, sub) : null),
+        h("b.mc-v", {}, M.fmtEur(v)));
+    }) : h("div.empty", {}, "Nessuna spesa in questo mese."));
 
-  const section = (id, title, tipo, rows, color, { readonly = false, sign = "+" } = {}) => {
-    const tot = rows.reduce((a, x) => a + Number(x.importo || 0), 0);
-    const key = id;
-    const open = view.open[key] ?? false;
-    const body = open ? h("div.list", {}, rows.length ? rows.map((x) => movRow(x, { sign,
-      onTap: readonly ? null : (z) => openMov(z, rerender) })) : h("div.empty", {}, "Nessuna voce.")) : null;
-    return h("div.card", { id }, h("div.sec-head", {},
-      h("button.sec-toggle", { onclick: () => { view.open[key] = !open; rerender(); } },
-        h("span.chev", {}, open ? "▾" : "▸"), h("span", {}, title),
-        h("span.count", {}, `${rows.length}`)),
-      h("span.sec-tot", { style: { color } }, M.fmtEur(tot)),
-      readonly ? null : h("button.add", { onclick: () => newMov(tipo, rerender) }, "＋")),
-    readonly ? h("div.muted.small", {}, "Presi dal file Investimenti (si aggiornano dall'app sul PC).") : null, body);
+  // voci del mese: entrate e spese in due colonne (Tutte · Spese · Entrate)
+  const all = M.filterMovs(movs, { year: y, month: m }).slice()
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const filt = view.filt || "tutte";
+  const rows = all.filter((x) => filt === "tutte" || (filt === "spese") === (x.tipo === M.T.USCITA));
+  const vrow = (x) => {
+    const spesa = x.tipo === M.T.USCITA;
+    const comune = x.origine === M.ORIGINE_COMUNE;
+    const v = Number(x.importo || 0);
+    const cat = [x.categoria, x.sottocategoria].filter(Boolean).join(" · ");
+    const amt = (spesa ? "−" : v < 0 ? "−" : "+") + M.fmtEur(Math.abs(v));
+    const color = comune ? C.violet : spesa || v < 0 ? C.red : C.green;
+    return h("button.mv-row" + (x._pending ? ".pending" : ""), { type: "button", onclick: () => openMov(x, rerender) },
+      h("div.mv-main", {}, h("div.mv-t", {}, (x.descrizione || cat || x.tipo || "—") + (x.allegato ? " 📎" : "")),
+        h("div.mv-s", {}, [M.fmtDate(x.data).slice(0, 5), spesa ? cat : x.tipo, comune ? "spesa comune" : ""]
+          .filter(Boolean).join(" · "))),
+      h("b.mv-in", { style: { color } }, spesa ? "" : amt),
+      h("b.mv-out", { style: { color } }, spesa ? amt : ""));
   };
-  const list = (tipo) => M.filterMovs(movs, { year: y, month: m, tipo });
+  const fbtn = (k, label) => h("button" + (filt === k ? ".on" : ""), { onclick: () => { view.filt = k; rerender(); } }, label);
+  const voci = h("div.card", { "data-keep": "", id: "mvoci" },
+    h("div.card-title.row.between", {}, h("span", {}, "Voci del mese"),
+      h("div.mv-f", {}, fbtn("tutte", "Tutte"), fbtn("spese", "Spese"), fbtn("entrate", "Entrate"))),
+    rows.length ? [h("div.mv-head", {}, h("span", {}, ""), h("span", {}, "Entrate"), h("span", {}, "Spese")),
+      ...rows.map(vrow)] : h("div.empty", {}, "Nessuna voce."));
 
-  fill(root, top, hero, three, budgetCard(y, m), scadenzeCard(rerender), entrate, fisseCard("personal", y, m, rerender), spese,
-    section("sec-spese", "Spese", M.T.USCITA, list(M.T.USCITA), C.red, { sign: "−" }),
-    mich ? section("sec-stip", "Stipendio", M.T.STIPENDIO, list(M.T.STIPENDIO), C.green) : null,
-    section("sec-extra", mich ? "Entrate extra" : "Entrate", M.T.ENTRATA, list(M.T.ENTRATA), C.green),
-    mich ? section("sec-inv", "Investimenti", M.T.INVESTIMENTO, list(M.T.INVESTIMENTO), C.green, { readonly: true }) : null,
-    h("button.fab", { onclick: () => newMov(M.T.USCITA, rerender), "aria-label": "Aggiungi spesa" }, "＋"));
+  const btns = h("div.mbtns", {},
+    h("button.mb-spesa", { onclick: () => newMov(M.T.USCITA, rerender) }, "＋ Spesa"),
+    h("button.mb-ent", { onclick: () => entrataMenu(rerender) }, "＋ Entrata"));
+
+  fill(root, top, hero, seg, budgetCard(y, m), scadenzeCard(rerender), cats, fisseCard("personal", y, m, rerender), voci,
+    btns);
 }
 
-function jump(id, rerender) {
-  view.open[id] = true;
-  rerender();
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+function entrataMenu(rerender) {
+  const s = sheet("Nuova entrata");
+  const pick = (tipo) => { s.close(); newMov(tipo, rerender); };
+  fill(s.body, h("div.ent-pick", {},
+    h("button.btn", { onclick: () => pick(M.T.STIPENDIO) }, "💼 Stipendio"),
+    h("button.btn", { onclick: () => pick(M.T.ENTRATA) }, "💶 Entrata extra")),
+  h("p.muted.small.center", {}, "Gli investimenti arrivano da soli dal file Investimenti."));
 }
 
 function newMov(tipo, rerender) {
