@@ -40,14 +40,73 @@ export function toast(msg, kind = "", ms = 0) {
   setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, ms || (kind === "error" ? 5000 : 2600));
 }
 
-/** Pannello che sale dal basso. Ritorna {el, close, body}. */
+// la pagina dietro un pannello aperto non scorre (anche su iPhone, dove overflow:hidden non basta)
+let scrollLocks = 0, lockedY = 0;
+export function lockScroll() {
+  if (scrollLocks++ > 0) return;
+  lockedY = window.scrollY;
+  Object.assign(document.body.style, { position: "fixed", top: `-${lockedY}px`, left: "0", right: "0" });
+  document.body.classList.add("sheet-lock");
+}
+export function unlockScroll() {
+  if (scrollLocks === 0 || --scrollLocks > 0) return;
+  Object.assign(document.body.style, { position: "", top: "", left: "", right: "" });
+  document.body.classList.remove("sheet-lock");
+  window.scrollTo(0, lockedY);
+}
+
+/** Pannello che sale dal basso. Ritorna {el, close, body}. Si chiude con la ✕, toccando fuori o trascinandolo
+ *  verso il basso dalla parte in alto (o da dove vuoi, se l'elenco è già tutto in cima). */
 export function sheet(title, { onClose } = {}) {
   const body = h("div.sheet-body");
-  const close = () => { wrap.classList.remove("open"); setTimeout(() => wrap.remove(), 250); onClose?.(); };
-  const panel = h("div.sheet", {}, h("div.sheet-head", {}, h("div.grab"), h("h3", {}, title),
-    h("button.icon-btn.sheet-x", { onclick: close, "aria-label": "Chiudi" }, "✕")), body);
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    panel.style.transition = "";
+    panel.style.transform = "translateY(100%)";
+    wrap.classList.remove("open");
+    setTimeout(() => wrap.remove(), 250);
+    unlockScroll();
+    onClose?.();
+  };
+  const head = h("div.sheet-head", {}, h("div.grab"), h("h3", {}, title),
+    h("button.icon-btn.sheet-x", { onclick: close, "aria-label": "Chiudi" }, "✕"));
+  const panel = h("div.sheet", {}, head, body);
   const wrap = h("div.sheet-wrap", { onclick: (e) => { if (e.target === wrap) close(); } }, panel);
+  // trascina giù per chiudere
+  let y0 = null, dy = 0, t0 = 0, drag = false;
+  panel.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1 || e.target.closest(".sheet-x")) { y0 = null; return; }
+    const fromHead = !!e.target.closest(".sheet-head");
+    y0 = fromHead || panel.scrollTop <= 0 ? e.touches[0].clientY : null;
+    dy = 0; t0 = Date.now(); drag = fromHead;
+  }, { passive: true });
+  panel.addEventListener("touchmove", (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    if (!drag) {
+      if (dy < 0 || panel.scrollTop > 0) { y0 = null; return; }   // sta scorrendo l'elenco verso l'alto
+      if (dy > 6) drag = true;
+    }
+    if (!drag) return;
+    e.preventDefault();
+    panel.style.transition = "none";
+    panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  const end = () => {
+    if (y0 == null) return;
+    y0 = null;
+    if (!drag) return;
+    drag = false;
+    const fast = dy > 40 && Date.now() - t0 < 250;
+    if (dy > Math.min(140, panel.offsetHeight * 0.25) || fast) close();
+    else { panel.style.transition = ""; panel.style.transform = ""; }
+  };
+  panel.addEventListener("touchend", end);
+  panel.addEventListener("touchcancel", end);
   document.body.append(wrap);
+  lockScroll();
   requestAnimationFrame(() => wrap.classList.add("open"));
   return { el: panel, body, close };
 }

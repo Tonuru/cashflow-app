@@ -4,7 +4,7 @@
 // parti in euro scritte sotto.
 import * as D from "./data.js";
 import * as M from "./model.js";
-import { h, fill, toast, busy, calendarPop } from "./ui.js";
+import { h, fill, toast, busy, calendarPop, lockScroll, unlockScroll } from "./ui.js";
 import { movimentoSheet, comuneSheet, shrinkPhoto } from "./forms.js";
 import { semaforoLine } from "./semafori.js";
 
@@ -68,9 +68,17 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   const wrap = h("div.qa-wrap");
   const panel = h("div.qa");
   wrap.append(panel);
-  const close = () => { wrap.classList.remove("open"); setTimeout(() => wrap.remove(), 220); };
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    wrap.classList.remove("open");
+    setTimeout(() => wrap.remove(), 220);
+    unlockScroll();
+  };
   wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
   document.body.append(wrap);
+  lockScroll();
   requestAnimationFrame(() => wrap.classList.add("open"));
 
   const value = () => Math.abs(M.parseAmount(String(st.amount)) || 0);
