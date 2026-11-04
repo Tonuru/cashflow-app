@@ -97,8 +97,16 @@ export function render(root, rerender) {
     h("button.mb-spesa", { onclick: () => newMov(M.T.USCITA, rerender) }, "＋ Spesa"),
     h("button.mb-ent", { onclick: () => entrataMenu(rerender) }, "＋ Entrata"));
 
-  fill(root, top, hero, seg, budgetCard(y, m), scadenzeCard(rerender), cats, fisseCard("personal", y, m, rerender), voci,
-    btns);
+  // i riquadri partono aperti e si chiudono toccando il titolo (resta chiuso finché non lo riapri)
+  const foldable = [[budgetCard(y, m), "budget"], [scadenzeCard(rerender), "scadenze"], [cats, "categorie"],
+    [fisseCard("personal", y, m, rerender), "fisse"], [voci, "voci"]];
+  for (const [card, name] of foldable) {
+    if (!card) continue;
+    delete card.dataset.keep;
+    card.dataset.fold = name;
+    card.dataset.start = "open";
+  }
+  fill(root, top, hero, seg, ...foldable.map(([c]) => c), btns);
 }
 
 function entrataMenu(rerender) {
