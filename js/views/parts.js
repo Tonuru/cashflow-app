@@ -28,7 +28,7 @@ export function catsCard(movs, y, m, rerender, openMov, { title = "Dove sono and
   const max = piv.length ? piv[0][1] : 0;
   return h("div.card", {},
     h("div.card-title.row.between", {}, h("span", {}, title),
-      h("span.muted.small", {}, piv.length ? (m ? "tocca per le voci" : `${M.fmtEur(tot)} · tocca per le voci`) : "")),
+      h("span.muted.small", {}, piv.length ? `${M.fmtEur(tot)} · tocca per le voci` : "")),
     piv.length ? piv.map(([c, v, subs]) => {
       const col = cols[c] || "#9AA3AE";
       const sub = subs.filter(([x]) => x).slice(0, 3).map(([x, sv]) => `${x} ${M.fmtEur(sv).replace(",00 €", " €")}`).join(" · ");
@@ -81,6 +81,9 @@ export function openFolds(pairs) {
   }
   return pairs.map(([c]) => c);
 }
+
+/** Riquadro sempre aperto (senza chiusura al tocco del titolo). */
+export function keepOpen(card) { if (card) card.dataset.keep = ""; return card; }
 
 /** Schede della Panoramica: TABS = [[chiave, testo]]; ritorna [elemento, scheda scelta]. */
 export function pageTabs(tabs, view, rerender) {

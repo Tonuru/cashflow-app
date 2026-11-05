@@ -13,7 +13,7 @@ import { notices } from "./views/mensile.js";
 import { noticesFunzioni } from "./views/funzioni.js";
 import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.19.0";
+export const APP_VERSION = "1.19.1";
 
 const TABS = [
   { id: "home", label: "Home", icon: "🏠" },
@@ -147,15 +147,17 @@ function startupNotice() {
   const other = D.otherPendingCount();
   if (pend) {
     toast(`⏳ ${pend} ${pend === 1 ? "voce non ancora scritta" : "voci non ancora scritte"} negli Excel`
-      + (other ? ` (${other} dall'altro telefono)` : "") + ": le vedi già qui, il PC le scrive appena è acceso.", "warn", 6000);
+      + (other ? ` (${other} dall'altro telefono)` : "") + ": il PC le scrive appena è acceso", "warn", 4000);
   } else if (s.otherError) {
-    toast(`Dati aggiornati, ma il foglio dell'altra persona non risponde: ${s.otherError}`, "warn", 6000);
+    toast(`Il foglio dell'altra persona non risponde: ${s.otherError}`, "warn", 4000);
   } else {
     const cd = D.copyDate();
-    toast(`✅ Tutto aggiornato${cd ? ` · dati del PC del ${fmtDate(cd)}` : ""}`, "ok", 3500);
+    toast(`✅ Aggiornato${cd ? ` · PC del ${fmtDate(cd)}` : ""}`, "ok", 1500);
   }
   // budget del mese (a gradini) e scadenze in arrivo, uno dopo l'altro
-  notices().concat(noticesFunzioni()).forEach(([msg, kind], i) => setTimeout(() => toast(msg, kind, 5000), 3800 + i * 5300));
+  // (brevi e in alto; restano comunque nei riquadri Budget e Scadenze)
+  const first = pend || s.otherError ? 4200 : 1700;
+  notices().concat(noticesFunzioni()).forEach(([msg, kind], i) => setTimeout(() => toast(msg, kind, 2600), first + i * 2800));
 }
 
 async function boot() {

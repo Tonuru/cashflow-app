@@ -5,7 +5,7 @@ import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, bars, sheet, toast, busy, fill, dateField } from "../ui.js";
 import { movimentoSheet, vociSheet, addedList } from "../forms.js";
-import { moneyHero, pctShort, catsCard, vociCard, openFolds, pageTabs, monthsTable } from "./parts.js";
+import { moneyHero, pctShort, catsCard, vociCard, openFolds, keepOpen, pageTabs, monthsTable } from "./parts.js";
 import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 import { seduteCard, sogliaCard, tasseCard } from "./funzioni.js";
 import { semaforoLine } from "../semafori.js";
@@ -121,8 +121,8 @@ export function renderMese(root, rerender, view) {
   const sed = seduteCard(rerender);
   if (sed) sed.dataset.keep = "";
   fill(root, top, hero, sed, ...openFolds([[budgetCard(y, m), "budget"], [scadenzeCard(rerender), "scadenze"],
-    [tiles, "inbreve"], [pazCard, "pazienti"], [contiCard, "conti"], [cats, "categorie"],
-    [fisseCard("personal", y, m, rerender), "fisse"], [voci, "voci"]]), btns);
+    [tiles, "inbreve"], [pazCard, "pazienti"], [contiCard, "conti"]]), keepOpen(cats),
+  ...openFolds([[fisseCard("personal", y, m, rerender), "fisse"], [voci, "voci"]]), btns);
 }
 
 function entrataMenu(removed, addEdu, addAltri, addProf) {

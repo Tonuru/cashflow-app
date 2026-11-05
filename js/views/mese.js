@@ -42,8 +42,11 @@ export function render(root, rerender) {
   const btns = h("div.mbtns", {},
     h("button.mb-spesa", { onclick: () => newMov(M.T.USCITA, rerender) }, "＋ Spesa"),
     h("button.mb-ent", { onclick: () => entrataMenu(rerender) }, "＋ Entrata"));
-  fill(root, top, hero, seg, ...openFolds([[budgetCard(y, m), "budget"], [scadenzeCard(rerender), "scadenze"],
-    [cats, "categorie"], [fisseCard("personal", y, m, rerender), "fisse"], [voci, "voci"]]), btns);
+  // le categorie restano sempre aperte (come in Panoramica); gli altri riquadri si chiudono toccando il titolo
+  cats.dataset.keep = "";
+  const [budget, scad] = openFolds([[budgetCard(y, m), "budget"], [scadenzeCard(rerender), "scadenze"]]);
+  const [fisse, vv] = openFolds([[fisseCard("personal", y, m, rerender), "fisse"], [voci, "voci"]]);
+  fill(root, top, hero, seg, budget, scad, cats, fisse, vv, btns);
 }
 
 function entrataMenu(rerender) {

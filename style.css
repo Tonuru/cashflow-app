@@ -161,8 +161,10 @@ table { border-collapse: separate; border-spacing: 0; font-size: 13px; font-vari
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form-err { color: var(--red); min-height: 18px; margin: 4px 0; font-size: 14px; }
 .actions { margin-top: 8px; } .actions .btn { flex: 1; }
-.toast { position: fixed; left: 50%; bottom: calc(90px + var(--safe-b)); transform: translate(-50%, 20px); opacity: 0; transition: .25s;
-  background: #2b3442; color: var(--text); padding: 11px 16px; border-radius: 12px; z-index: 80; max-width: 90vw; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+/* avvisi: in alto sotto l'intestazione, piccoli (prima stavano in basso sopra i bottoni «＋ Spesa» e li coprivano) */
+.toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 54px); transform: translate(-50%, -12px); opacity: 0; transition: .2s;
+  background: #2b3442; color: var(--text); padding: 7px 14px; border-radius: 999px; z-index: 80; max-width: 90vw; text-align: center;
+  font-size: 13.5px; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); } .toast.ok { background: #1E5E3E; } .toast.error { background: #7a2d33; }
 
 /* ------------------------------------------------ configurazione e impostazioni */
@@ -258,7 +260,8 @@ html { touch-action: manipulation; }       /* niente zoom col doppio tocco */
 .done-row { color: var(--green); font-size: 14px; padding: 4px 2px; }
 .center > .chip { margin: 4px auto 8px; }
 .toast.warn { background: #6b4e12; }
-.toast { max-width: calc(100vw - 32px); width: max-content; text-align: center; line-height: 1.35; }
+.toast { max-width: calc(100vw - 32px); width: max-content; text-align: center; line-height: 1.3; }
+.toast.warn, .toast.error { border-radius: 14px; }
 
 /* spese fisse, budget, scadenze */
 .fx-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }

@@ -34,10 +34,12 @@ export const C = {
 export const moneyColor = (v) => (v > 0.004 ? C.green : v < -0.004 ? C.red : C.text);
 
 export function toast(msg, kind = "", ms = 0) {
+  // uno alla volta: quello nuovo prende il posto del vecchio
+  document.querySelectorAll(".toast").forEach((x) => x.remove());
   const t = h("div.toast" + (kind ? "." + kind : ""), { onclick: () => t.remove() }, msg);
   document.body.append(t);
   requestAnimationFrame(() => t.classList.add("show"));
-  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, ms || (kind === "error" ? 5000 : 2600));
+  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 250); }, ms || (kind === "error" ? 5000 : 2200));
 }
 
 // la pagina dietro un pannello aperto non scorre (anche su iPhone, dove overflow:hidden non basta)
