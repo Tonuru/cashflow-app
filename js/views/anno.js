@@ -1,27 +1,14 @@
-// Panoramica dell'anno: tabella mese per mese, entrate non mensili (13ª, 14ª, extra), grafici, medie.
+// Panoramica (Michele): fascia verde come «Il mio mese» e schede Mesi · Categorie · Entrate · Anni.
+// Per Tania la pagina è in tania.js.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, moneyColor, monthNav, donut, bars, dots, sheet, toast, busy, fill } from "../ui.js";
+import { h, C, moneyColor, monthNav, bars, sheet, toast, busy, fill } from "../ui.js";
 import { vociSheet } from "../forms.js";
 import { MODI, setMode, view as meseView, openMov } from "./mese.js";
 import * as Tania from "./tania.js";
-import { obiettiviCard, patrimonioCard, previsioneCard } from "./funzioni.js";
 
-export const view = { y: new Date().getFullYear(), inc13: true, incex: true, netM: false, netY: false };
-
-// colonne della tabella: [titolo, spiegazione, chiave, gruppo, tipo]
-const COLS = [
-  ["Stip.", "Stipendio del mese (compresi tredicesima, quattordicesima e premi).", "st", 0, "in"],
-  ["Spese", "Tutte le spese del mese.", "sp", 0, "out"],
-  ["Rimane", "Rimane dallo stipendio NEL MESE = Stipendio − Spese.", "r1", 0, "rim"],
-  ["Σ Rim.", "Progressivo di «Rimane»: somma dall'inizio dell'anno fino a quel mese.", "p1", 0, "prog"],
-  ["Invest.", "Incassi degli investimenti (interessi, cedole; i bolli sono negativi).", "iv", 1, "in2"],
-  ["Rim. +inv", "Rimane con gli investimenti NEL MESE = Stipendio + Investimenti − Spese.", "r2", 1, "rim"],
-  ["Σ +inv", "Progressivo di «Rim. +inv».", "p2", 1, "prog"],
-  ["Extra", "Entrate extra: regali, rimborsi, vendite.", "ex", 2, "in2"],
-  ["Rim. tot", "Rimane con tutte le entrate NEL MESE.", "r3", 2, "rim"],
-  ["Σ tot", "Progressivo di «Rim. tot».", "p3", 2, "prog"],
-];
+export const view = { y: new Date().getFullYear(), inc13: true, incex: true, netM: false, netY: false, tab: "mesi" };
+try { view.tab = sessionStorage.getItem("cf.ptab") || "mesi"; } catch { /* */ }
 
 export function render(root, rerender, goMonth) {
   if (!D.isMichele()) { Tania.renderAnno(root, rerender, view, goMonth); return; }
@@ -38,73 +25,96 @@ export function render(root, rerender, goMonth) {
   const nmesi = y < today.getFullYear() ? 12 : y === today.getFullYear() ? today.getMonth() + 1 : 0;
 
   const top = h("div.page-top", {}, monthNav(y, 1, (yy) => { view.y = yy; rerender(); }, { yearOnly: true }));
-  const pc = M.pctText(rv, en);
-  const hero = h("div.hero" + (rv > 0.004 ? ".pos" : rv < -0.004 ? ".neg" : ""), {},
-    mich ? h("button.nav.small", { onclick: () => { setMode(mode - 1); rerender(); } }, "‹") : null,
-    h("div.hero-mid", {}, h("div.hero-title", {}, `${mich ? MODI[mode][1] : "Rimane"} · ${y}`),
-      h("div.hero-val", { style: { color: moneyColor(rv) } }, M.fmtEur(rv, true)),
-      h("div.hero-sub", {}, pc ? h("b", { style: { color: moneyColor(rv) } }, pc) : null, mich ? dots(3, mode) : null),
-      h("div.hero-cap", {}, mich ? MODI[mode][2] : "entrate − spese")),
-    mich ? h("button.nav.small", { onclick: () => { setMode(mode + 1); rerender(); } }, "›") : null);
 
-  const prevT = M.yearTable(D.allMovs(y - 1), y - 1, true, true);
-  const hasPrev = prevT.months.some((x) => x.has);
-  const stats = h("div.stats.two", {},
-    h("div.stat", {}, h("div.stat-t", {}, `${mich ? MODI[mode][0] : "Entrate"} dell'anno`), h("div.stat-v", { style: { color: C.green } }, M.fmtEur(en))),
-    h("div.stat", {}, h("div.stat-t", {}, "Spese dell'anno"), h("div.stat-v", { style: { color: C.red } }, M.fmtEur(tot.sp))),
-    h("div.stat", {}, h("div.stat-t", {}, "Media al mese"),
-      nmesi ? [h("div.stat-v", {}, M.fmtEur(tot.sp / nmesi)), h("div.stat-s", {}, `spese · rimane ${M.fmtEur(rv / nmesi, true)}`)]
-        : h("div.stat-v", {}, "—")),
-    h("div.stat", {}, h("div.stat-t", {}, `Spese rispetto al ${y - 1}`),
-      hasPrev ? [h("div.stat-v", { style: { color: tot.sp - prevT.totale.sp > 0 ? C.red : C.green } },
-        (tot.sp - prevT.totale.sp >= 0 ? "+" : "−") + M.fmtEur(Math.abs(tot.sp - prevT.totale.sp))),
-      h("div.stat-s", {}, `${y - 1}: spese ${M.fmtEur(prevT.totale.sp)}`)] : h("div.stat-v", {}, "—")));
+  // fascia verde come «Il mio mese» (A1): quanto rimane nell'anno, barra speso/rimane, Entrato · Uscito · Al mese
+  const spentPct = en > 0 ? Math.min(100, (tot.sp / en) * 100) : (tot.sp > 0 ? 100 : 0);
+  const chip = (title, val) => h("div.mh-chip", {}, h("div", {}, title), h("b", {}, val));
+  const hero = h("div.mhero" + (rv < -0.004 ? ".neg" : ""), {},
+    h("div.mh-t", {}, `NEL ${y} TI RIMANE · ${MODI[mode][2].toUpperCase()}`),
+    h("div.mh-v", {}, M.fmtEur(rv, true)),
+    h("div.mh-split", {}, h("i", { style: { width: `${spentPct.toFixed(1)}%` } })),
+    h("div.mh-chips", {}, chip("Entrato", M.fmtEur(en)), chip("Uscito", M.fmtEur(tot.sp)),
+      chip("Al mese", nmesi ? M.fmtEur(rv / nmesi, true) : "—")));
+  const seg = h("div.seg.mseg", {}, ["Stipendio", "+ Investimenti", "Tutto"].map((name, i) =>
+    h("button" + (i === mode ? ".on" : ""), { onclick: () => { setMode(i); rerender(); } }, name)));
 
-  // grafico mese per mese
-  const entOf = (x) => [x.st, x.st + x.iv, x.st + x.iv + x.ex][mode];
-  const sel = y === today.getFullYear() ? today.getMonth() : -1;
-  const chart = h("div.card", {}, h("div.card-title.row.between", {}, h("span", {}, "Mese per mese"),
-    netToggle(view.netM, (v) => { view.netM = v; rerender(); })),
-  bars(yt.months.map((x, i) => ({ label: M.MESI_BREVI[i][0], a: entOf(x), b: x.sp })),
-    { net: view.netM, sel, onPick: (i) => goMonth(y, i + 1) }),
-  h("div.legend", {}, view.netM ? `${mich ? MODI[mode][1] : "Rimane"} di ogni mese (verde guadagno, rosso perdita) — tocca un mese per aprirlo`
-    : [h("i", { style: { color: C.green } }, "■ "), mich ? MODI[mode][0] : "Entrate", h("i", { style: { color: C.red } }, "  ■ "), "Spese — tocca un mese per aprirlo"]));
+  // schede (A3): Mesi · Categorie · Entrate · Anni
+  const TABS = [["mesi", "Mesi"], ["categorie", "Categorie"], ["entrate", "Entrate"], ["anni", "Anni"]];
+  const tab = TABS.some(([k]) => k === view.tab) ? view.tab : "mesi";
+  const tabs = h("div.ptabs", {}, TABS.map(([k, label]) => h("button" + (k === tab ? ".on" : ""),
+    { "data-ptab": k, onclick: () => { view.tab = k; try { sessionStorage.setItem("cf.ptab", k); } catch { /* */ } rerender(); } },
+    label)));
 
-  // tabella dell'anno
-  const th = h("tr", {}, h("th.sticky", {}, "Mese"), COLS.map(([t, tip, , g]) =>
-    h("th.g" + g, { onclick: () => toast(`${t}: ${tip}`) }, t, h("sup", {}, " ⓘ"))));
-  const fmtCell = (v, kind, show) => {
-    if (kind === "rim" || kind === "prog") return show ? [M.fmtEur(v, true), moneyColor(v)] : ["—", C.muted];
-    if (!v) return ["—", C.muted];
-    return [M.fmtEur(v), kind === "in" ? C.green : kind === "out" ? C.red : "#7FC8A0"];
-  };
-  const rows = yt.months.map((x, i) => h("tr" + (i === sel ? ".sel" : ""), { onclick: () => goMonth(y, i + 1) },
-    h("td.sticky", {}, M.MESI_BREVI[i]),
-    COLS.map(([, , k, g, kind]) => {
-      const [txt, col] = fmtCell(x[k], kind, x.has || (kind === "prog" && x.past));
-      return h(`td.g${g}${kind === "prog" ? ".p" : ""}`, { style: { color: col, fontWeight: kind === "rim" ? 700 : 400 } }, txt);
-    })));
-  const a = yt.annual;
-  const excl = [["13ª/14ª", view.inc13], ["extra", view.incex]].filter(([, on]) => !on).map(([n]) => n);
-  rows.push(h("tr.annual", {}, h("td.sticky", {}, "13ª/14ª/extra" + (excl.length ? " ✕" : "")),
-    COLS.map(([, , k, g, kind]) => {
-      const v = a[k] || 0;
-      const rk = kind === "rim" || kind === "prog";
-      return h(`td.g${g}${kind === "prog" ? ".p" : ""}`, { style: { color: v ? (rk ? moneyColor(v) : C.amber) : C.muted } },
-        v || (rk && a.has) ? M.fmtEur(v, rk) : "—");
-    })));
-  rows.push(h("tr.total", {}, h("td.sticky", {}, "Totale"), COLS.map(([, , k, g, kind]) => {
-    if (kind === "prog") return h(`td.g${g}.p`, {}, "");
-    const v = tot[k] || 0;
-    return h(`td.g${g}`, { style: { color: kind === "rim" ? moneyColor(v) : C.text } }, M.fmtEur(v, kind === "rim"));
-  })));
-  const table = h("div.card", {}, h("div.card-title", {}, "Tabella dell'anno"),
-    h("div.muted.small.center", {}, "Scorri di lato · tocca un titolo per la spiegazione, un mese per aprirlo"),
-    h("div.tscroll", {}, h("table.ytable", {}, h("thead", {}, th), h("tbody", {}, rows))));
+  let body;
+  if (tab === "mesi") {
+    const entOf = (x) => [x.st, x.st + x.iv, x.st + x.iv + x.ex][mode];
+    const rimOf = (x) => [x.r1, x.r2, x.r3][mode];
+    const sel = y === today.getFullYear() ? today.getMonth() : -1;
+    const chart = h("div.card", {}, h("div.card-title.row.between", {}, h("span", {}, "Mese per mese"),
+      netToggle(view.netM, (v) => { view.netM = v; rerender(); })),
+    bars(yt.months.map((x, i) => ({ label: M.MESI_BREVI[i][0], a: entOf(x), b: x.sp })),
+      { net: view.netM, sel, onPick: (i) => goMonth(y, i + 1) }),
+    h("div.legend", {}, "Tocca un mese per aprirlo"));
+    // cifre tonde, così le quattro colonne stanno nello schermo del telefono
+    const n0 = (v) => M.fmtEur(Math.round(v)).replace(",00 €", " €");
+    const r0 = (v) => M.fmtEur(Math.round(v), true).replace(",00 €", " €");
+    const line = (cls, name, a, b, c, onclick) => h("button.pt-row" + cls, { onclick },
+      h("span.pt-m", {}, name), h("span.pt-in", {}, a), h("span.pt-out", {}, b), h("b.pt-r", { style: { color: c[1] } }, c[0]));
+    const a = yt.annual;
+    const aEnt = [a.st, a.st + a.iv, a.st + a.iv + a.ex][mode] || 0;
+    const aRim = [a.r1, a.r2, a.r3][mode] || 0;
+    const table = h("div.card", {},
+      h("div.pt-head", {}, h("span", {}, "Mese"), h("span", {}, "Entrato"), h("span", {}, "Uscito"), h("span", {}, "Rimane")),
+      yt.months.map((x, i) => x.has || i === sel
+        ? line(i === sel ? ".sel" : "", M.MESI_BREVI[i], entOf(x) ? n0(entOf(x)) : "—", x.sp ? n0(x.sp) : "—",
+          x.has ? [r0(rimOf(x)), moneyColor(rimOf(x))] : ["—", C.muted], () => goMonth(y, i + 1))
+        : null),
+      aEnt || aRim ? line(".annual", "13ª/14ª/extra", aEnt ? n0(aEnt) : "—", "",
+        [r0(aRim), C.amber], () => { view.tab = "entrate"; rerender(); }) : null,
+      line(".total", "Totale", n0(en), n0(tot.sp), [r0(rv), moneyColor(rv)], null),
+      h("div.muted.small.center", { style: { marginTop: "6px" } }, "Tocca un mese per aprirlo"));
+    body = [chart, table];
+  } else if (tab === "categorie") {
+    body = [catCard(movs, y, rerender)];
+  } else if (tab === "entrate") {
+    const prevT = M.yearTable(D.allMovs(y - 1), y - 1, true, true);
+    const hasPrev = prevT.months.some((x) => x.has);
+    const d = tot.sp - prevT.totale.sp;
+    const conf = hasPrev ? h("div.card", {}, h("div.card-title", {}, `Rispetto al ${y - 1}`),
+      h("div.row.between", {}, h("span", {}, "Spese"), h("b", { style: { color: d > 0 ? C.red : C.green } },
+        `${d >= 0 ? "+" : "−"}${M.fmtEur(Math.abs(d))}`)),
+      h("div.muted.small", {}, `${y - 1}: spese ${M.fmtEur(prevT.totale.sp)} · ${y}: ${M.fmtEur(tot.sp)}`)) : null;
+    body = [annualCard(y, yt.an, movs, rerender), medieCard(movs, y), conf];
+  } else {
+    body = [yearsCard(mode, (yy) => { view.y = yy; rerender(); }, rerender)
+      || h("div.card", {}, h("div.empty", {}, "Ancora un anno solo."))];
+  }
+  for (const c of body) if (c) c.dataset.keep = "";   // dentro le schede i riquadri restano aperti
 
-  fill(root, top, hero, stats, previsioneCard(), patrimonioCard(), obiettiviCard("personal", rerender), chart, table,
-    annualCard(y, yt.an, movs, rerender), medieCard(movs, y),
-    pivotCard(movs, y, rerender), yearsCard(mode, (yy) => { view.y = yy; rerender(); }, rerender));
+  fill(root, top, hero, seg, tabs, ...body);
+}
+
+/** Categorie dell'anno a barre (come «Dove sono andati» in Il mio mese); tocco = le voci. */
+function catCard(movs, y, rerender) {
+  const cols = M.colors(D.categorie(y));
+  const piv = M.categoryPivot(movs, y);
+  const tot = piv.reduce((a, x) => a + x[1], 0);
+  const max = piv.length ? piv[0][1] : 0;
+  const show = (c) => vociSheet(`${c} · ${y}`, M.filterMovs(movs, { year: y, tipo: M.T.USCITA, categoria: c }),
+    { onTap: (x) => openMov(x, rerender) });
+  return h("div.card", {}, h("div.card-title.row.between", {}, h("span", {}, "Dove sono andati"),
+    h("span.muted.small", {}, piv.length ? `${M.fmtEur(tot)} · tocca per le voci` : "")),
+  piv.length ? piv.map(([c, v, subs]) => {
+    const col = cols[c] || "#9AA3AE";
+    const sub = subs.filter(([x]) => x).slice(0, 3).map(([x, sv]) => `${x} ${M.fmtEur(sv).replace(",00 €", " €")}`).join(" · ");
+    return h("button.mc-row", { onclick: () => show(c) },
+      h("i.mc-ic", { style: { background: col + "33", color: col } }, (c || "?").slice(0, 1).toUpperCase()),
+      h("div.mc-mid", {}, h("div.mc-top", {}, h("span.mc-name", {}, c),
+        h("span.mc-pct", {}, tot ? `${Math.round((v / tot) * 100)}%` : "")),
+      h("div.mc-bar", {}, h("i", { style: { width: `${max ? (v / max) * 100 : 0}%`, background: col } })),
+      sub ? h("div.mc-sub", {}, sub) : null),
+      h("b.mc-v", {}, M.fmtEur(v)));
+  }) : h("div.empty", {}, "Nessuna spesa."));
 }
 
 function netToggle(on, set) {
@@ -190,22 +200,6 @@ function medieCard(movs, y) {
           md.mesi_validi ? M.fmtEur(md[kk], true) : "—")))))),
     h("div.muted.small.center", {}, md.mesi_validi ? `Calcolate sui ${md.mesi_validi} mesi con lo stipendio. «Con 13ª+14ª» aggiunge ${M.fmtEur(md.tredicesima_quattordicesima)} divisi su 12 mesi.`
       : "Nessuno stipendio inserito in questo anno."));
-}
-
-function pivotCard(movs, y, rerender) {
-  const cols = M.colors(D.categorie(y));
-  const piv = M.categoryPivot(movs, y);
-  const tot = piv.reduce((a, x) => a + x[1], 0);
-  const show = (c, s) => vociSheet(s != null ? `${c} · ${s || "senza specifica"}` : `${c} · ${y}`,
-    M.filterMovs(movs, { year: y, tipo: M.T.USCITA, categoria: c, sotto: s }), { onTap: (x) => openMov(x, rerender) });
-  return h("div.card", {}, h("div.card-title.center", {}, "Spese per categoria e specifica"),
-    piv.length ? h("div.donut-wrap", {}, donut(piv.map(([c, v]) => ({ name: c, value: v, color: cols[c] || "#9AA3AE", onclick: () => show(c) })),
-      tot, { center: M.fmtEur(tot) })) : h("div.empty", {}, "Nessuna spesa."),
-    h("div.pivot", {}, piv.map(([c, v, subs]) => h("div.pv", {},
-      h("button.pv-cat", { onclick: () => show(c) }, h("i.sw", { style: { background: cols[c] || "#9AA3AE" } }),
-        h("span.pv-name", {}, c), h("span.pv-pct", {}, tot ? `${Math.round((v / tot) * 100)}%` : ""), h("span.pv-v", {}, M.fmtEur(v))),
-      subs.filter(([s]) => s || subs.length > 1).map(([s, sv]) => h("button.pv-sub", { onclick: () => show(c, s) },
-        h("span.pv-name", {}, s || "senza specifica"), h("span.pv-v", {}, M.fmtEur(sv))))))));
 }
 
 function yearsCard(mode, pick, rerender) {

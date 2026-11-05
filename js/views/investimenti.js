@@ -4,6 +4,7 @@
 import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, fill } from "../ui.js";
+import { patrimonioCard } from "./funzioni.js";
 
 const K_LINK = "cf.investLink";
 export const view = { foglio: 0 };
@@ -137,7 +138,10 @@ export function render(root, rerender) {
       onclick: () => { view.foglio = i; rerender(); } }, x.nome))),
     sheetTable(f)) : null;
 
-  fill(root, head, big, scad, incassi, conti, tit, sheet, linkCard(rerender));
+  // lo storico del patrimonio mese per mese sta qui (prima era in Panoramica), come sul PC
+  const storia = patrimonioCard();
+  if (storia) storia.dataset.keep = "";
+  fill(root, head, big, storia, scad, incassi, conti, tit, sheet, linkCard(rerender));
 }
 
 function sheetTable(f) {

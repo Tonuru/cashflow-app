@@ -134,7 +134,7 @@ export function patrimonioCard() {
   const last = rows[rows.length - 1];
   const shown = rows.slice(-12);
   const max = Math.max(...shown.map((r) => Number(r.totale || 0)), 1);
-  return h("div.card", { "data-fold": "patrimonio" }, h("div.card-title", {}, "🏦 Patrimonio (investimenti)"),
+  return h("div.card", { "data-fold": "patrimonio" }, h("div.card-title", {}, "📈 Storico del patrimonio"),
     h("div.big-val", {}, M.fmtEur(last.totale)),
     h("div.small.muted", {}, `${M.MESI[Number(last.data.slice(5, 7)) - 1]} ${last.data.slice(0, 4)}`
       + (last.variazione != null ? ` · ${M.fmtEur(last.variazione, true)} sul mese prima` : "")),

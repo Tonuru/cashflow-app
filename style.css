@@ -543,3 +543,18 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
   box-shadow: 0 6px 18px rgba(0,0,0,.45); }
 .mb-spesa { background: #D64545; } .mb-ent { background: #1E9E5A; }
 .ent-pick { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 10px; } .ent-pick .btn { padding: 14px; font-size: 16px; }
+
+/* Panoramica (Michele): schede Mesi · Categorie · Entrate · Anni e tabella stretta dei mesi */
+.ptabs { display: flex; border-bottom: 1px solid var(--border); margin: 2px 0 12px; }
+.ptabs button { flex: 1; padding: 10px 0; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; }
+.ptabs button.on { color: var(--text); font-weight: 800; border-bottom-color: var(--accent); }
+.pt-head, .pt-row { display: grid; grid-template-columns: minmax(0, 1fr) 78px 78px 86px; gap: 4px; align-items: center; }
+.pt-head { color: var(--muted); font-size: 11px; font-weight: 700; padding: 2px 4px 6px; text-transform: uppercase; }
+.pt-head span:not(:first-child) { text-align: right; }
+.pt-row { width: 100%; text-align: left; padding: 9px 4px; border-top: 1px solid var(--track); border-radius: 6px; font-size: 14px; }
+.pt-row:active { background: var(--input); }
+.pt-row.sel { background: var(--blue-soft); }
+.pt-in, .pt-out, .pt-r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pt-in { color: var(--green); } .pt-out { color: var(--red); }
+.pt-m { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-row.annual .pt-m { color: var(--amber); font-size: 12px; } .pt-row.total { font-weight: 800; } .pt-row.total .pt-m { font-weight: 800; }
