@@ -3,10 +3,11 @@
 // stipendio dalla professione = netto del mese prima, Educativa, Altri ingressi, Spese.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, moneyColor, monthNav, donut, bars, sheet, toast, busy, fill, dateField } from "../ui.js";
-import { movimentoSheet, vociSheet, movRow, addedList } from "../forms.js";
+import { h, C, moneyColor, monthNav, bars, sheet, toast, busy, fill, dateField } from "../ui.js";
+import { movimentoSheet, vociSheet, addedList } from "../forms.js";
+import { moneyHero, pctShort, catsCard, vociCard, openFolds, pageTabs, monthsTable } from "./parts.js";
 import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
-import { obiettiviCard, seduteCard, sogliaCard, tasseCard } from "./funzioni.js";
+import { seduteCard, sogliaCard, tasseCard } from "./funzioni.js";
 import { semaforoLine } from "../semafori.js";
 
 const eduMonths = new Set();   // mesi in cui Tania ha acceso l'Educativa (solo finché l'app è aperta)
@@ -15,40 +16,12 @@ const prevMonth = (y, m) => (m === 1 ? [y - 1, 12] : [y, m - 1]);
 const pct = (v) => `${(v * 100).toFixed(1).replace(/\.0$/, "").replace(".", ",")}%`;
 const lower = (i) => M.MESI[i - 1].toLowerCase();
 
-function heroBox(title, v, entrate, cap) {
-  const pc = M.pctText(v, entrate);
-  return h("div.hero" + (v > 0.004 ? ".pos" : v < -0.004 ? ".neg" : ""), {},
-    h("div.hero-mid", {}, h("div.hero-title", {}, title),
-      h("div.hero-val", { style: { color: moneyColor(v) } }, M.fmtEur(v, true)),
-      h("div.hero-sub", {}, pc ? h("b", { style: { color: moneyColor(v) } }, pc) : null),
-      h("div.hero-cap", {}, cap)));
-}
-const stat = (t, v, color, sub, onclick) => h(onclick ? "button.stat" : "div.stat", { onclick },
-  h("div.stat-t", {}, t), h("div.stat-v", { style: { color } }, v), sub ? h("div.stat-s", {}, sub) : null);
-
 /** Tabella a due colonne (voce / importo) con righe di totale evidenziate. */
 function conti(rows) {
   return h("div.conti", {}, rows.map(([name, sub, v, opt = {}]) => h("div.conto" + (opt.tot ? ".tot" : ""), {},
     h("div", {}, h("div.conto-n", {}, name), sub ? h("div.conto-s", {}, sub) : null),
     h("div.conto-v", { style: { color: opt.color || (opt.sign ? moneyColor(v) : v ? C.text : C.muted) } },
       M.fmtEur(v, !!opt.sign)))));
-}
-
-function pivotBlock(movs, y, m, total, rerender, emptyText) {
-  const cols = M.colors(D.categorie(y));
-  const piv = M.categoryPivot(movs, y, m);
-  const show = (c, s) => vociSheet(s != null ? `${c} · ${s || "senza specifica"}` : c,
-    M.filterMovs(movs, { year: y, month: m, tipo: M.T.USCITA, categoria: c, sotto: s }),
-    { onTap: (x) => openTania(x, rerender) });
-  if (!piv.length) return [h("div.empty", {}, emptyText)];
-  return [h("div.donut-wrap", {}, donut(piv.map(([c, v]) => ({ name: c, value: v, color: cols[c] || "#9AA3AE",
-    onclick: () => show(c) })), total, { center: M.fmtEur(total) })),
-  h("div.pivot", {}, piv.map(([c, v, subs]) => h("div.pv", {},
-    h("button.pv-cat", { onclick: () => show(c) }, h("i.sw", { style: { background: cols[c] || "#9AA3AE" } }),
-      h("span.pv-name", {}, c), h("span.pv-pct", {}, total ? `${Math.round((v / total) * 100)}%` : ""),
-      h("span.pv-v", {}, M.fmtEur(v))),
-    subs.filter(([s]) => s || subs.length > 1).map(([s, sv]) => h("button.pv-sub", { onclick: () => show(c, s) },
-      h("span.pv-name", {}, s || "senza specifica"), h("span.pv-v", {}, M.fmtEur(sv)))))))];
 }
 
 // ---------------------------------------------------------------- mese per mese
@@ -63,14 +36,9 @@ export function renderMese(root, rerender, view) {
   const [ny, nm] = nextMonth(y, m), [py, pm] = prevMonth(y, m);
 
   const top = h("div.page-top", {}, monthNav(y, m, (yy, mm) => { view.y = yy; view.m = mm; rerender(); }));
-  const hero = heroBox("Rimane", t.rimane, t.entrate, "entrate − spese");
-  const stats = h("div.stats.two", {},
-    stat("Entrate del mese", M.fmtEur(t.entrate), C.green, `${M.MESI[m - 1]} ${y}`),
-    stat("Spese", M.fmtEur(t.spese), C.red, "senza le spese della professione"),
-    stat("Incasso della professione", M.fmtEur(p.incasso), C.green, `${p.sedute} sedute · tasse ${M.fmtEur(p.tasse)}`,
-      () => jump("sec-sedute", view, rerender)),
-    stat("Netto della professione", M.fmtEur(p.netto, true), moneyColor(p.netto), `stipendio di ${lower(nm)}`));
-
+  // «T1 · Come sul PC»: fascia verde con quanto rimane ed Entrato · Uscito · Rimane
+  const hero = moneyHero("Ti rimane · entrate − spese", t.rimane, t.entrate, t.spese,
+    [["Entrato", M.fmtEur(t.entrate)], ["Uscito", M.fmtEur(t.spese)], ["Rimane", pctShort(t.rimane, t.entrate)]]);
   // pazienti del mese (la griglia del vecchio file)
   const paz = M.pazienti(movs, y, m);
   const importi = (rows) => {
@@ -118,54 +86,53 @@ export function renderMese(root, rerender, view) {
     disabled: eduRows.length > 0,
     onclick: () => { if (eduMonths.has(key)) eduMonths.delete(key); else eduMonths.add(key); rerender(); },
   }, (showEdu ? "✓ " : "") + "Educativa in questo mese");
-  const entCard = h("div.card", { "data-fold": "entrate" }, h("div.card-title", {}, "Entrate del mese"),
-    conti([
-      ...(showEdu || t.educativa ? [["Educativa", "", t.educativa, { color: t.educativa ? C.green : C.muted }]] : []),
-      ["Stipendio dalla professione", `netto della professione di ${lower(pm)} ${py}`, t.stip_prof,
-        { color: t.stip_prof ? C.green : C.muted }],
-      ["Altri ingressi", "famiglia, tredicesima, NASpI, altro", t.altri, { color: t.altri ? C.green : C.muted }],
-      ["Totale", "", t.entrate, { tot: true, color: C.green }],
-    ]),
-    eduChip ? h("div.center", {}, eduChip) : null,
-    h("div.muted.small", {}, `Totale = ${showEdu ? "Educativa + " : ""}Stipendio dalla professione + Altri ingressi.`));
+  const newMov = (tipo, categoria) => () => movimentoSheet({ tipo, data: defaultDate(view), categoria }, { onDone: rerender });
+  const addSeduta = () => sedutaSheet(defaultDate(view), "", rerender);
+  const addEdu = () => { eduMonths.add(key); newMov(M.T.STIPENDIO, M.CAT_EDUCATIVA)(); };
+
+  // «Il mese»: i riquadri delle entrate e della professione (come sul PC), tocco = le voci, ＋ = aggiungi
+  const sedRows = inMonth(M.isProfIncome), profRows = inMonth(M.isProfCost);
+  const altRows = inMonth((x) => x.tipo === M.T.ENTRATA && !M.isProfIncome(x));
+  const tile = (icon, bg, name, sub, v, color, rows, add, title) => h("div.tt-row", {},
+    h("button.tt-main", { onclick: rows ? () => vociSheet(title || name, rows, { onTap: (x) => openTania(x, rerender) }) : null },
+      h("i.tt-ic", { style: { background: bg } }, icon),
+      h("div.tt-mid", {}, h("div.tt-n", {}, name), sub ? h("div.tt-s", {}, sub) : null),
+      h("b.tt-v", { style: { color: v ? color : C.muted } }, M.fmtEur(v))),
+    add ? h("button.tt-add", { onclick: add, "aria-label": `Aggiungi: ${name}` }, "＋") : null);
+  const npaz = new Set(sedRows.map((x) => x.sottocategoria || "")).size;
+  const tiles = h("div.card", {}, h("div.card-title", {}, `${M.MESI[m - 1]} in breve`),
+    tile("🧠", "#173326", "Sedute", sedRows.length ? `${p.sedute} sedute · ${npaz} pazient${npaz === 1 ? "e" : "i"}` : "nessuna seduta",
+      p.incasso, C.green, sedRows, addSeduta),
+    tile("💼", "#3A1E22", "Spese professionali", "studio, Fiscozen, Guida Psi…", p.spese_prof, C.red, profRows,
+      newMov(M.T.USCITA, M.CAT_SPESE_PROF)),
+    tile("💰", "#1E2D4A", "Stipendio dalla professione", `netto di ${lower(pm)} ${py}`, t.stip_prof, C.green, null, null),
+    showEdu || t.educativa ? tile("🏫", "#2A1F3D", "Educativa", "", t.educativa, C.green, eduRows, addEdu) : null,
+    tile("💶", "#3A2E14", "Altri ingressi", "famiglia, tredicesima, NASpI…", t.altri, C.green, altRows, newMov(M.T.ENTRATA)),
+    eduChip ? h("div.center", { style: { marginTop: "8px" } }, eduChip) : null);
 
   const spMovs = M.personalSpese(movs);
-  const speseCard = h("div.card", { "data-fold": "spese-mese" },
-    h("div.card-title.row.between", {}, h("span", {}, "Spese del mese"), h("span.big-red", {}, M.fmtEur(t.spese))),
-    ...pivotBlock(spMovs, y, m, t.spese, rerender, "Nessuna spesa in questo mese."));
-
-  const section = (id, title, rows, color, add, sign = "+") => {
-    const tot = rows.reduce((a, x) => a + Number(x.importo || 0), 0);
-    const open = view.open[id] ?? false;
-    return h("div.card", { id }, h("div.sec-head", {},
-      h("button.sec-toggle", { onclick: () => { view.open[id] = !open; rerender(); } },
-        h("span.chev", {}, open ? "▾" : "▸"), h("span", {}, title), h("span.count", {}, `${rows.length}`)),
-      h("span.sec-tot", { style: { color } }, M.fmtEur(tot)),
-      h("button.add", { onclick: add }, "＋")),
-    open ? h("div.list", {}, rows.length ? rows.map((x) => movRow(x, { sign, onTap: (z) => openTania(z, rerender) }))
-      : h("div.empty", {}, "Nessuna voce.")) : null);
-  };
-  const newMov = (tipo, categoria) => () => movimentoSheet({ tipo, data: defaultDate(view), categoria }, { onDone: rerender });
-
-  fill(root, top, hero, stats, seduteCard(rerender), budgetCard(y, m), scadenzeCard(rerender),
-    fisseCard("personal", y, m, rerender),
-    h("div.group-title", {}, "🧠 Libera professione"), pazCard, contiCard,
-    section("sec-sedute", "Sedute", inMonth(M.isProfIncome), C.green, () => sedutaSheet(defaultDate(view), "", rerender)),
-    section("sec-prof", "Spese professionali", inMonth(M.isProfCost), C.red, newMov(M.T.USCITA, M.CAT_SPESE_PROF), "−"),
-    h("div.group-title", {}, "💶 Entrate"), entCard,
-    showEdu ? section("sec-edu", "Educativa", eduRows, C.green, newMov(M.T.STIPENDIO, M.CAT_EDUCATIVA)) : null,
-    section("sec-altri", "Altri ingressi", inMonth((x) => x.tipo === M.T.ENTRATA && !M.isProfIncome(x)), C.green,
-      newMov(M.T.ENTRATA)),
-    h("div.group-title", {}, "🛒 Spese"), speseCard,
-    section("sec-spese", "Spese", inMonth((x) => (x.tipo || M.T.USCITA) === M.T.USCITA && !M.isProfCost(x)), C.red,
-      newMov(M.T.USCITA), "−"),
-    h("button.fab", { onclick: newMov(M.T.USCITA), "aria-label": "Aggiungi spesa" }, "＋"));
+  const cats = catsCard(spMovs, y, m, rerender, openTania);
+  const voci = vociCard(M.filterMovs(movs, { year: y, month: m }), view, rerender, openTania);
+  const btns = h("div.mbtns", {},
+    h("button.mb-sed", { onclick: addSeduta }, "＋ Seduta"),
+    h("button.mb-spesa", { onclick: newMov(M.T.USCITA) }, "＋ Spesa"),
+    h("button.mb-ent", { onclick: () => entrataMenu(removed, addEdu, newMov(M.T.ENTRATA), newMov(M.T.USCITA, M.CAT_SPESE_PROF)) },
+      "＋ Entrata"));
+  const sed = seduteCard(rerender);
+  if (sed) sed.dataset.keep = "";
+  fill(root, top, hero, sed, ...openFolds([[budgetCard(y, m), "budget"], [scadenzeCard(rerender), "scadenze"],
+    [tiles, "inbreve"], [pazCard, "pazienti"], [contiCard, "conti"], [cats, "categorie"],
+    [fisseCard("personal", y, m, rerender), "fisse"], [voci, "voci"]]), btns);
 }
 
-function jump(id, view, rerender) {
-  view.open[id] = true;
-  rerender();
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+function entrataMenu(removed, addEdu, addAltri, addProf) {
+  const s = sheet("Aggiungi");
+  const pick = (fn) => () => { s.close(); fn(); };
+  fill(s.body, h("div.ent-pick", {},
+    removed ? null : h("button.btn", { onclick: pick(addEdu) }, "🏫 Educativa"),
+    h("button.btn", { onclick: pick(addAltri) }, "💶 Altri ingressi"),
+    h("button.btn", { onclick: pick(addProf) }, "💼 Spesa professionale")),
+  h("p.muted.small.center", {}, "Le sedute si aggiungono con «＋ Seduta»."));
 }
 
 function defaultDate(view) {
@@ -233,26 +200,11 @@ export function sedutaSheet(data, paziente, rerender) {
 }
 
 // ---------------------------------------------------------------- panoramica dell'anno
-const COLS = [
-  ["Incasso", "Incasso lordo della libera professione (sedute).", "inc", "in"],
-  ["Tasse", "Contributo soggettivo + integrativo ENPAP + imposta, con gli indici dell'anno.", "tax", "out"],
-  ["Sp. prof.", "Spese della professione (studio, Fiscozen, Guida Psi…).", "spp", "out"],
-  ["Netto prof.", "Incasso − tasse − spese professionali: diventa lo stipendio del mese dopo.", "net", "rim"],
-  ["Educativa", "Stipendio da educatrice.", "edu", "in"],
-  ["Stip. prof.", "Stipendio dalla professione = netto professione del mese prima (mai negativo).", "stp", "in"],
-  ["Altri", "Altri ingressi: famiglia, tredicesima, NASpI…", "alt", "in"],
-  ["Entrate", "Educativa + Stip. prof. + Altri.", "ent", "in"],
-  ["Spese", "Spese personali (senza le spese professionali).", "spe", "out"],
-  ["Rimane", "Entrate − Spese.", "rim", "rim"],
-  ["Σ Rimane", "Somma di «Rimane» dall'inizio dell'anno.", "prog", "prog"],
-];
-
 export function renderAnno(root, rerender, view, goMonth) {
   const y = view.y;
   const months = Array.from({ length: 12 }, (_, i) => D.taniaMonth(y, i + 1));
   const today = new Date();
   const sel = y === today.getFullYear() ? today.getMonth() : -1;
-  const cols = D.eduRemoved() ? COLS.filter((c) => c[2] !== "edu") : COLS;
   const tot = { inc: 0, tax: 0, spp: 0, net: 0, edu: 0, stp: 0, alt: 0, ent: 0, spe: 0, rim: 0 };
   let prog = 0;
   const rowsData = months.map((t, i) => {
@@ -268,50 +220,58 @@ export function renderAnno(root, rerender, view, goMonth) {
   const ind = D.indici(y);
 
   const top = h("div.page-top", {}, monthNav(y, 1, (yy) => { view.y = yy; rerender(); }, { yearOnly: true }));
-  const hero = heroBox(`Rimane · ${y}`, tot.rim, tot.ent, "entrate − spese");
-  const stats = h("div.stats.two", {},
-    stat("Incasso della professione", M.fmtEur(tot.inc), C.green, `netto professione ${M.fmtEur(tot.net, true)}`),
-    stat("Tasse e contributi", M.fmtEur(tot.tax), C.red,
-      `coeff. ${pct(ind.coef)} · ENPAP ${pct(ind.sogg)} + ${pct(ind.integr)} · imposta ${pct(ind.aliq)}`),
-    stat("Entrate dell'anno", M.fmtEur(tot.ent), C.green, String(y)),
-    stat("Spese dell'anno", M.fmtEur(tot.spe), C.red, String(y)));
+  const nmesi = y < today.getFullYear() ? 12 : y === today.getFullYear() ? today.getMonth() + 1 : 0;
+  // fascia verde come «Mese per mese» (A1) e schede (A3)
+  const hero = moneyHero(`Nel ${y} ti rimane · entrate − spese`, tot.rim, tot.ent, tot.spe,
+    [["Entrato", M.fmtEur(tot.ent)], ["Uscito", M.fmtEur(tot.spe)], ["Al mese", nmesi ? M.fmtEur(tot.rim / nmesi, true) : "—"]]);
+  const [tabs, tab] = pageTabs([["mesi", "Mesi"], ["professione", "Professione"], ["categorie", "Categorie"], ["anni", "Anni"]],
+    view, rerender);
 
-  const fmtCell = (v, kind, r) => {
-    if (kind === "prog") return r.has || r.past ? [M.fmtEur(v, true), moneyColor(v)] : ["—", C.muted];
-    if (kind === "rim") return r.has ? [M.fmtEur(v, true), moneyColor(v)] : ["—", C.muted];
-    return v ? [M.fmtEur(v), kind === "in" ? C.green : C.red] : ["—", C.muted];
-  };
-  const th = h("tr", {}, h("th.sticky", {}, "Mese"), cols.map(([t, tip]) =>
-    h("th.g0", { onclick: () => toast(`${t}: ${tip}`) }, t, h("sup", {}, " ⓘ"))));
-  const body = rowsData.map((r, i) => h("tr" + (i === sel ? ".sel" : ""), { onclick: () => goMonth(y, i + 1) },
-    h("td.sticky", {}, M.MESI_BREVI[i]),
-    cols.map(([, , k, kind]) => {
-      const [txt, col] = fmtCell(r[k], kind, r);
-      return h("td.g0" + (kind === "prog" ? ".p" : ""), { style: { color: col, fontWeight: kind === "rim" ? 700 : 400 } }, txt);
-    })));
-  body.push(h("tr.total", {}, h("td.sticky", {}, "Totale"), cols.map(([, , k, kind]) => {
-    if (kind === "prog") return h("td.g0.p", {}, "");
-    const v = tot[k];
-    return h("td.g0", { style: { color: kind === "rim" ? moneyColor(v) : C.text } }, M.fmtEur(v, kind === "rim"));
-  })));
-  const table = h("div.card", { "data-fold": "tabella" }, h("div.card-title", {}, "Tabella dell'anno"),
-    h("div.muted.small.center", {}, "Scorri di lato · tocca un titolo per la spiegazione, un mese per aprirlo"),
-    h("div.tscroll", {}, h("table.ytable", {}, h("thead", {}, th), h("tbody", {}, body))));
-
-  const chart = h("div.card", { "data-fold": "grafico" }, h("div.card-title", {}, "Entrate e spese mese per mese"),
-    bars(months.map((t, i) => ({ label: M.MESI_BREVI[i][0], a: t.entrate, b: t.spese })), { sel, onPick: (i) => goMonth(y, i + 1) }),
-    h("div.legend", {}, h("i", { style: { color: C.green } }, "■ "), "Entrate", h("i", { style: { color: C.red } }, "  ■ "),
-      "Spese — tocca un mese per aprirlo"));
-
-  const movs = M.personalSpese(D.allMovs(y));
-  const cat = h("div.card", { "data-fold": "categorie" }, h("div.card-title", {}, "Spese per categoria e specifica"),
-    ...pivotBlock(movs, y, null, tot.spe, rerender, "Nessuna spesa in questo anno."));
-
-  const indCard = h("div.card", { "data-fold": "indici" }, h("div.card-title", {}, `Indici di tasse e contributi ${y}`),
-    h("div.conti", {}, M.INDICI.map(([k, label]) => h("div.conto", {}, h("div.conto-n", {}, label),
-      h("div.conto-v", {}, pct(ind[k]))))),
-    h("div.muted.small", {}, "Come nel foglio Home del vecchio file. Si cambiano dal PC: Impostazioni → Tasse e contributi della libera professione."));
-
-  fill(root, top, hero, stats, sogliaCard(y), tasseCard(y, rerender), obiettiviCard("personal", rerender), table, chart, cat,
-    indCard);
+  let body;
+  if (tab === "mesi") {
+    const chart = h("div.card", {}, h("div.card-title", {}, "Mese per mese"),
+      bars(months.map((t, i) => ({ label: M.MESI_BREVI[i][0], a: t.entrate, b: t.spese })), { sel, onPick: (i) => goMonth(y, i + 1) }),
+      h("div.legend", {}, h("i", { style: { color: C.green } }, "■ "), "Entrate", h("i", { style: { color: C.red } }, "  ■ "),
+        "Spese — tocca un mese per aprirlo"));
+    const rows = months.map((t, i) => (rowsData[i].has || i === sel
+      ? { name: M.MESI_BREVI[i], ent: t.entrate, spe: t.spese, rim: t.rimane, has: rowsData[i].has, sel: i === sel,
+        onclick: () => goMonth(y, i + 1) } : null)).filter(Boolean);
+    body = [chart, monthsTable(rows, { ent: tot.ent, spe: tot.spe, rim: tot.rim })];
+  } else if (tab === "professione") {
+    const riep = h("div.card", {}, h("div.card-title", {}, `Libera professione ${y}`),
+      conti([
+        ["Incasso lordo", "tutte le sedute dell'anno", tot.inc, { color: C.green }],
+        ["− Tasse e contributi", `coeff. ${pct(ind.coef)} · ENPAP ${pct(ind.sogg)} + ${pct(ind.integr)} · imposta ${pct(ind.aliq)}`,
+          -tot.tax, { color: C.red }],
+        ["− Spese professionali", "", -tot.spp, { color: C.red }],
+        ["= Netto della professione", "", tot.net, { tot: true, sign: true }],
+      ]),
+      h("div.card-title", { style: { marginTop: "12px" } }, "Entrate dell'anno"),
+      conti([
+        ...(D.eduRemoved() ? [] : [["Educativa", "", tot.edu, { color: tot.edu ? C.green : C.muted }]]),
+        ["Stipendio dalla professione", "il netto del mese prima", tot.stp, { color: tot.stp ? C.green : C.muted }],
+        ["Altri ingressi", "", tot.alt, { color: tot.alt ? C.green : C.muted }],
+        ["Totale", "", tot.ent, { tot: true, color: C.green }],
+      ]));
+    const indCard = h("div.card", {}, h("div.card-title", {}, `Indici di tasse e contributi ${y}`),
+      h("div.conti", {}, M.INDICI.map(([k, label]) => h("div.conto", {}, h("div.conto-n", {}, label),
+        h("div.conto-v", {}, pct(ind[k]))))),
+      h("div.muted.small", {}, "Si cambiano dal PC: Impostazioni → Lavoro ed educativa."));
+    body = [riep, sogliaCard(y), tasseCard(y, rerender), indCard];
+  } else if (tab === "categorie") {
+    body = [catsCard(M.personalSpese(D.allMovs(y)), y, null, rerender, openTania)];
+  } else {
+    const ys = [...new Set([...D.years("personal"), ...D.years("comune")])].sort();
+    const series = ys.map((yy) => {
+      let a = 0, b = 0;
+      for (let i = 1; i <= 12; i++) { const t = D.taniaMonth(yy, i); a += t.entrate; b += t.spese; }
+      return { label: String(yy).slice(2), a, b, y: yy };
+    });
+    body = [h("div.card", {}, h("div.card-title", {}, "Anno per anno"),
+      series.length > 1 ? bars(series, { onPick: (i) => { view.y = series[i].y; view.tab = "mesi"; rerender(); }, height: 140 })
+        : h("div.empty", {}, "Ancora un anno solo."),
+      h("div.legend", {}, "Entrate e spese di ogni anno — tocca un anno per aprirlo"))];
+  }
+  for (const c of body) if (c) c.dataset.keep = "";   // dentro le schede i riquadri restano aperti
+  fill(root, top, hero, tabs, ...body);
 }

@@ -558,3 +558,16 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .pt-in { color: var(--green); } .pt-out { color: var(--red); }
 .pt-m { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pt-row.annual .pt-m { color: var(--amber); font-size: 12px; } .pt-row.total { font-weight: 800; } .pt-row.total .pt-m { font-weight: 800; }
+
+/* Mese per mese di Tania: riquadri «in breve» (sedute, spese professionali, entrate) con ＋ */
+.tt-row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--track); }
+.card-title + .tt-row { border-top: 0; }
+.tt-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 2px; border-radius: 8px; }
+.tt-main:active { background: var(--input); }
+.tt-ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-style: normal; font-size: 18px; flex: none; }
+.tt-mid { flex: 1; min-width: 0; } .tt-n { font-weight: 700; }
+.tt-s { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-v { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tt-add { width: 36px; height: 34px; border-radius: 10px; background: var(--green-soft); color: var(--green); font-size: 20px; font-weight: 800; flex: none; }
+.mb-sed { background: #3A78E8; }
+.mbtns button { font-size: 15px; padding: 13px 6px; }
