@@ -1,8 +1,9 @@
-// Funzioni accese dalle Impostazioni del PC: obiettivi di risparmio, chiudi il mese, patrimonio e previsione di
-// fine anno (Michele), tasse da mettere da parte, soglia del forfettario, sedute da incassare (Tania).
+// Funzioni accese dalle Impostazioni del PC: obiettivi di risparmio, chiudi il mese, storico del patrimonio (Michele),
+// tasse da mettere da parte, soglia del forfettario, sedute da incassare (Tania). La previsione di fine anno sul
+// telefono non c'è più.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, toast, busy, sheet, fill, moneyColor, dateField } from "../ui.js";
+import { h, C, toast, busy, sheet, fill, dateField } from "../ui.js";
 import { semaforoLine } from "../semafori.js";
 
 const amountInput = (ph = "importo") => h("input", { type: "text", inputmode: "decimal", placeholder: ph, autocomplete: "off" });
@@ -126,7 +127,7 @@ export function chiudiMeseCard(rerender) {
     bR, semaforoLine("comune"));
 }
 
-// ---------------------------------------------------------------- patrimonio e previsione (Michele)
+// ---------------------------------------------------------------- patrimonio (Michele)
 export function patrimonioCard() {
   if (!D.isMichele() || !D.feature("patrimonio_attivo")) return null;
   const rows = M.patrimonioStoria(D.lista("personal", "patrimonio"));
@@ -147,22 +148,6 @@ export function patrimonioCard() {
     h("div.muted.small", {}, "Solo gli investimenti, letti dal file Investimenti dal PC (un valore al mese)."));
 }
 
-export function previsioneCard() {
-  if (!D.isMichele() || !D.feature("previsione_attiva")) return null;
-  const y = new Date().getFullYear();
-  const p = M.previsioneAnno(D.allMovsEveryYear(), y, D.fisse("personal"), D.scadenze());
-  const bits = [`finora ${M.fmtEur(p.finora, true)}`, `nei ${p.mesi_stimati} mesi che mancano circa ${M.fmtEur(p.resto, true)}`,
-    `media dell'anno ${M.fmtEur(p.media, true)} al mese`];
-  if (p.fisse_mese) bits.push(`spese fisse ${M.fmtEur(p.fisse_mese)} al mese`);
-  if (p.scadenze.length) bits.push("scadenze " + p.scadenze.map((s) => `${s.nome} ${M.fmtEur(s.importo)}`).join(", "));
-  for (const [cat, tr] of Object.entries(p.tredicesime)) if (!tr.arrivata && tr.importo) bits.push(`${cat.toLowerCase()} prevista ${M.fmtEur(tr.importo)}`);
-  const rows = M.patrimonioStoria(D.lista("personal", "patrimonio"));
-  const last = rows.length && D.feature("patrimonio_attivo") ? Number(rows[rows.length - 1].totale || 0) : null;
-  return h("div.card", { "data-fold": "previsione" }, h("div.card-title", {}, `🔮 Previsione di fine ${y}`),
-    h("div.big-val", { style: { color: moneyColor(p.fine_anno) } }, M.fmtEur(p.fine_anno, true)),
-    h("div.small.muted", {}, bits.join(" · ") + "."),
-    last != null ? h("div.small", {}, `Patrimonio a fine anno se metti da parte quello che rimane: `, h("b", {}, M.fmtEur(last + p.resto))) : null);
-}
 
 // ---------------------------------------------------------------- Tania: tasse, soglia, sedute da incassare
 const allTania = () => D.allMovsEveryYear();

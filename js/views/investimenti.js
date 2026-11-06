@@ -1,13 +1,16 @@
 // Investimenti (solo Michele): il file dell'app Investimenti, SOLO DA GUARDARE.
-// Lo legge il PC (senza modificarlo) e lo mette nella copia per il telefono: riepilogo e fogli, con i risultati delle
+// Lo legge il PC (senza modificarlo) e lo mette nella copia per il telefono: il riepilogo (scadenze, conti, BTP e buoni, incassi), con i risultati delle
 // formule così come sono salvati nel file. Da qui non si cambia niente: per modificare si usa l'app Investimenti sul PC.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, fill } from "../ui.js";
+import { h, C, fill, bars } from "../ui.js";
 import { patrimonioCard } from "./funzioni.js";
+import { view as meseView } from "./mese.js";
+import { view as annoView, yearSeries } from "./anno.js";
+import { yearsPicker } from "./parts.js";
 
 const K_LINK = "cf.investLink";
-export const view = { foglio: 0 };
+export const view = { y: new Date().getFullYear() };
 
 export const data = () => D.copia()?.investimenti || null;
 export const available = () => D.isMichele() && !!data();
@@ -47,7 +50,7 @@ function tile(t, v, s, color) {
   return h("div.stat", {}, h("div.stat-t", {}, t), h("div.stat-v", { style: color ? { color } : {} }, v), s ? h("div.stat-s", {}, s) : null);
 }
 
-export function render(root, rerender) {
+export function render(root, rerender, go) {
   const d = data();
   if (!d) {
     fill(root, h("div.card.center", { "data-keep": "" }, h("p.muted", {}, "Nessun dato degli investimenti. Sul PC controlla in "
@@ -83,7 +86,7 @@ export function render(root, rerender) {
         h("div.iv-l", {}, h("b", {}, `${s.tipo} · ${s.nome}`), h("div.small.muted", {}, `${dIso(s.data)} · ${quando(s.data)}`)),
         h("div.iv-r", {}, h("b", { style: { color: C.green } }, eur0(s.finale || s.importo)),
           h("div.small.muted", {}, `investiti ${eur0(s.importo)}`))))),
-      sc.length > 8 ? h("div.small.muted.center", {}, `… e altre ${sc.length - 8} (tutte nel foglio «Buoni Postali» e «BTP» qui sotto)`) : null]
+      sc.length > 8 ? h("div.small.muted.center", {}, `… e altre ${sc.length - 8} (tutte nell'app Investimenti sul PC)`) : null]
       : h("div.empty", {}, "Nessun buono o BTP in scadenza."));
 
   // conti correnti
@@ -128,39 +131,36 @@ export function render(root, rerender) {
       h("div.iv-r", {}, h("b", { style: { color: x.importo >= 0 ? C.green : C.red } },
         (x.importo >= 0 ? "+" : "−") + M.fmtEur(Math.abs(x.importo))))))) : null) : null;
 
-  // il file, foglio per foglio
-  const fogli = d.fogli || [];
-  if (view.foglio >= fogli.length) view.foglio = 0;
-  const f = fogli[view.foglio];
-  const sheet = fogli.length ? h("div.card", { "data-fold": "iv-fogli" }, h("div.card-title", {}, "📄 Il file, foglio per foglio"),
-    h("div.small.muted", {}, "Così com'è salvato nel file, con i risultati delle formule. Scorri di lato per le altre colonne."),
-    h("div.iv-tabs", {}, fogli.map((x, i) => h("button.iv-tab" + (i === view.foglio ? ".on" : ""), {
-      onclick: () => { view.foglio = i; rerender(); } }, x.nome))),
-    sheetTable(f)) : null;
+  // come sul PC: incassi degli investimenti mese per mese dell'anno scelto e, sotto, «Anno per anno» (che sceglie l'anno)
+  const y = view.y;
+  const movs = D.allMovs(y);
+  const vals = Array.from({ length: 12 }, (_, i) => M.monthTotals(movs, y, i + 1).per_tipo[M.T.INVESTIMENTO] || 0);
+  const incTot = vals.reduce((a, v) => a + v, 0);
+  const today = new Date();
+  const nm = y === today.getFullYear() ? today.getMonth() + 1 : y < today.getFullYear() ? 12 : 0;
+  const best = vals.some(Boolean) ? vals.indexOf(Math.max(...vals)) : -1;
+  const openMonth = (i) => { meseView.y = y; meseView.m = i + 1; go?.("mese"); };
+  const mesi = h("div.card", { "data-keep": "", id: "iv-mesi" },
+    h("div.card-title", {}, `💶 Incassi mese per mese · ${y}`),
+    h("div.row.between", {}, h("div.big-val", { style: { color: incTot >= 0 ? C.green : C.red } }, M.fmtEur(incTot, true)),
+      h("div.small.muted", { style: { textAlign: "right" } }, nm ? `media ${M.fmtEur(incTot / nm, true)} al mese` : "",
+        best >= 0 && vals[best] > 0 ? h("div", {}, `migliore: ${M.MESI[best].toLowerCase()} ${M.fmtEur(vals[best], true)}`) : null)),
+    bars(vals.map((v, i) => ({ label: M.MESI_BREVI[i][0], a: v, b: 0 })), { net: true, sel: y === today.getFullYear() ? today.getMonth() : -1,
+      onPick: openMonth, height: 150 }),
+    h("div.legend", {}, h("i", { style: { color: C.green } }, "■ "), "incassi", h("i", { style: { color: C.red } }, "  ■ "),
+      "bolli e costi — tocca un mese per aprirlo"));
+  const anni = yearsPicker(yearSeries(meseView.mode), y, (yy) => { view.y = yy; rerender(); },
+    { net: annoView.netY, onNet: (v) => { annoView.netY = v; rerender(); },
+      onOpen: (yy) => { annoView.y = yy; annoView.ysel = yy; annoView.tab = "mesi"; go?.("anno"); } });
+  if (anni) anni.dataset.keep = "";
 
   // lo storico del patrimonio mese per mese sta qui (prima era in Panoramica), come sul PC
   const storia = patrimonioCard();
   if (storia) storia.dataset.keep = "";
-  fill(root, head, big, storia, scad, incassi, conti, tit, sheet, linkCard(rerender));
+  // (niente più «Il file, foglio per foglio», come sul PC)
+  fill(root, head, big, mesi, anni, storia, scad, incassi, conti, tit, linkCard(rerender));
 }
 
-function sheetTable(f) {
-  const rows = f.righe || [];
-  const ncol = rows.reduce((a, r) => Math.max(a, r.length), 0);
-  const bold = new Set((f.grassetto || []).map(([r, c]) => `${r}:${c}`));
-  const colName = (i) => { let s = ""; i += 1; while (i) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; };
-  const first = Number(f.prima_colonna || 0);
-  const isNum = (t) => /^[−+-]?[\d.]+(,\d+)?( €|%)?$/.test(t);
-  return h("div.tscroll.iv-sheet", {}, h("table.iv-grid", {},
-    h("thead", {}, h("tr", {}, h("th.iv-rn", {}, ""), Array.from({ length: ncol }, (_, c) => h("th", {}, colName(c + first))))),
-    h("tbody", {}, rows.map((r, ri) => h("tr", {}, h("td.iv-rn", {}, String(ri + 1)),
-      Array.from({ length: ncol }, (_, c) => {
-        const t = r[c] || "";
-        const cls = [isNum(t) ? "n" : "", bold.has(`${ri}:${c}`) ? "b" : "", t.startsWith("−") ? "neg" : ""].filter(Boolean).join(".");
-        return h("td" + (cls ? "." + cls : ""), {}, t);
-      }))))),
-    f.troncato ? h("div.small.muted", {}, "Il foglio è più lungo: qui ci sono le prime righe.") : null);
-}
 
 /** Facoltativo: il link del file su OneDrive, per aprirlo nell'app Excel (lì però si potrebbe anche modificare). */
 function linkCard(rerender) {

@@ -681,59 +681,6 @@ function scadOccurrences(scadenze, y) {
   }
   return out;
 }
-export function previsioneAnno(movs, y, fisse = [], scadenze = [], today = todayIso()) {
-  const [ty, tm] = ym(today);
-  const cm = ty === y ? tm : (y < ty ? 13 : 1);
-  const fx = (fisse || []).filter((f) => f.attiva !== false && (f.tipo || T.USCITA) === T.USCITA);
-  const ids = new Set(fx.map((f) => f.id));
-  const extraStip = (yy, mo) => movs.filter((m) => m.tipo === T.STIPENDIO && EXTRA_STIPENDIO.includes(m.categoria)
-    && inMonth(m.data, yy, mo) && !isAnnual(m)).reduce((a, m) => a + Number(m.importo || 0), 0);
-  const extraCat = (yy, cat) => {
-    const an = annual(movs, yy);
-    return an[cat === "Tredicesima" ? "tredicesima" : "quattordicesima"] + movs.filter((m) => m.tipo === T.STIPENDIO
-      && m.categoria === cat && !isAnnual(m) && inYear(m.data, yy)).reduce((a, m) => a + Number(m.importo || 0), 0);
-  };
-  const mesi = [], vari = [];
-  for (let mo = 1; mo <= 12; mo++) {
-    const t = monthTotals(movs, y, mo);
-    const r = rimanenti(t).totale;
-    const ex = extraStip(y, mo);
-    const stip = (t.per_tipo[T.STIPENDIO] || 0) - ex;
-    if (mo < cm || (mo === cm && stip > 0)) {
-      mesi.push({ mese: mo, valore: pyRound2(r), stimato: false });
-      if (stip > 0) {
-        const f = movs.filter((m) => ids.has(m.fissa) && (m.tipo || T.USCITA) === T.USCITA && inMonth(m.data, y, mo))
-          .reduce((a, m) => a + Number(m.importo || 0), 0);
-        vari.push(r - ex + f);
-      }
-    } else mesi.push({ mese: mo, valore: 0, stimato: true });
-  }
-  const media = vari.length ? vari.reduce((a, b) => a + b, 0) / vari.length : 0;
-  const fisseMese = fx.reduce((a, f) => a + Number(fissaProposal(f, movs).importo || 0), 0);
-  const occ = scadOccurrences(scadenze, y);
-  const tredi = {};
-  for (const [cat, mo] of [["Tredicesima", 12], ["Quattordicesima", 7]]) {
-    const got = extraCat(y, cat);
-    tredi[cat] = { arrivata: got > 0, importo: pyRound2(got > 0 ? got : extraCat(y - 1, cat)), mese: mo };
-  }
-  const scadList = [];
-  for (const x of mesi) {
-    if (!x.stimato) continue;
-    const sc = occ.filter(([d]) => Number(d.slice(5, 7)) === x.mese);
-    const scTot = sc.reduce((a, [, s]) => a + Number(s.importo || 0), 0);
-    sc.forEach(([d, s]) => scadList.push({ data: d, nome: s.nome, importo: Number(s.importo || 0) }));
-    let v = media - fisseMese - scTot;
-    for (const tr of Object.values(tredi)) if (tr.mese === x.mese && !tr.arrivata) v += tr.importo;
-    x.valore = pyRound2(v);
-  }
-  const an = annual(movs, y);
-  const annuali = pyRound2(an.stipendio + an.extra);
-  const finora = pyRound2(mesi.filter((x) => !x.stimato).reduce((a, x) => a + x.valore, 0) + annuali);
-  const resto = pyRound2(mesi.filter((x) => x.stimato).reduce((a, x) => a + x.valore, 0));
-  return { anno: y, mesi, media: pyRound2(media), mesi_media: vari.length, fisse_mese: pyRound2(fisseMese),
-    scadenze: scadList, tredicesime: tredi, annuali, finora, resto, fine_anno: pyRound2(finora + resto),
-    mesi_stimati: mesi.filter((x) => x.stimato).length };
-}
 
 // ---------------------------------------------------------------- patrimonio (core/patrimonio.py)
 export function patrimonioStoria(rows) {

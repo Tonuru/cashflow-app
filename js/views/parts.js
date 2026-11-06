@@ -2,7 +2,7 @@
 // voci del mese in due colonne, schede della Panoramica, riquadri che partono aperti.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, moneyColor } from "../ui.js";
+import { h, C, moneyColor, bars } from "../ui.js";
 import { vociSheet } from "../forms.js";
 
 /** Fascia colorata: titolo, cifra grande, barra speso/rimane e tre riquadri [titolo, valore]. */
@@ -107,4 +107,39 @@ export function monthsTable(rows, total) {
     rows.map(line),
     line({ name: "Totale", ent: total.ent, spe: total.spe, rim: total.rim, has: true, cls: ".total" }),
     h("div.muted.small.center", { style: { marginTop: "6px" } }, "Tocca un mese per aprirlo"));
+}
+
+export const YEARS_WINDOW = 6;      // anni nel grafico: quello scelto e i cinque prima
+
+/** «Anno per anno» con l'anno da scegliere (frecce o tocco su una barra), come sul PC: nel grafico l'anno scelto e
+ *  i cinque prima, sotto i conti di quell'anno e il confronto con l'anno prima.
+ *  series = [{y, a: entrate, b: spese}] (tutti gli anni, in ordine); opts: {net, onNet, onOpen}. */
+export function yearsPicker(series, selYear, onSel, { net = false, onNet, onOpen } = {}) {
+  if (!series.length) return null;
+  const ys = series.map((s) => s.y);
+  const sel = ys.includes(selYear) ? selYear : ys[ys.length - 1];
+  const k = ys.indexOf(sel);
+  const shown = series.slice(Math.max(0, k - YEARS_WINDOW + 1), k + 1);
+  const cur = series[k], prev = k > 0 ? series[k - 1] : null;
+  const r = cur.a - cur.b;
+  const nav = h("div.yp-nav", {},
+    h("button.yp-a", { disabled: k === 0, onclick: () => onSel(ys[k - 1]), "aria-label": "Anno prima" }, "‹"),
+    h("b.yp-y", {}, String(sel)),
+    h("button.yp-a", { disabled: k === ys.length - 1, onclick: () => onSel(ys[k + 1]), "aria-label": "Anno dopo" }, "›"));
+  const d = prev ? r - (prev.a - prev.b) : null;
+  return h("div.card", { id: "anni" },
+    h("div.card-title.row.between", {}, h("span", {}, "Anno per anno"), nav),
+    onNet ? h("div.seg.small", { style: { marginBottom: "6px" } },
+      h("button" + (net ? "" : ".on"), { onclick: () => onNet(false) }, "Entrate/spese"),
+      h("button" + (net ? ".on" : ""), { onclick: () => onNet(true) }, "Solo rimane")) : null,
+    bars(shown.map((s) => ({ label: String(s.y), a: s.a, b: s.b })), { net, sel: shown.indexOf(cur), height: 140,
+      onPick: (i) => onSel(shown[i].y) }),
+    h("div.legend", {}, "Tocca un anno per sceglierlo"),
+    h("div.yp-sum", {},
+      h("div.row.between", {}, h("span", {}, "Entrate"), h("b", { style: { color: C.green } }, M.fmtEur(cur.a))),
+      h("div.row.between", {}, h("span", {}, "Spese"), h("b", { style: { color: C.red } }, M.fmtEur(cur.b))),
+      h("div.row.between", {}, h("b", {}, `Rimane nel ${sel}`), h("b", { style: { color: moneyColor(r) } }, M.fmtEur(r, true))),
+      prev ? h("div.row.between.muted.small", {}, h("span", {}, `Rispetto al ${prev.y}`),
+        h("b", { style: { color: moneyColor(d) } }, M.fmtEur(d, true))) : null),
+    onOpen ? h("button.btn.yp-open", { onclick: () => onOpen(sel) }, `Apri la Panoramica del ${sel}`) : null);
 }

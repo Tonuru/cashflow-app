@@ -79,7 +79,7 @@ export function renderPage(id, root, rerender, go) {
   if (id === "obiettivi") return obiettivi(root, rerender);
   if (id === "scadenze") return scadenze(root, rerender);
   if (id === "cambiato") return cambiato(root, rerender);
-  if (id === "investimenti") return Inv.render(root, rerender);
+  if (id === "investimenti") return Inv.render(root, rerender, go);
   return null;
 }
 

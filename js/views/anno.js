@@ -5,6 +5,7 @@ import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, bars, sheet, toast, busy, fill } from "../ui.js";
 import { vociSheet } from "../forms.js";
 import { MODI, setMode, view as meseView, openMov } from "./mese.js";
+import { yearsPicker } from "./parts.js";
 import * as Tania from "./tania.js";
 
 export const view = { y: new Date().getFullYear(), inc13: true, incex: true, netM: false, netY: false, tab: "mesi" };
@@ -86,8 +87,10 @@ export function render(root, rerender, goMonth) {
       h("div.muted.small", {}, `${y - 1}: spese ${M.fmtEur(prevT.totale.sp)} · ${y}: ${M.fmtEur(tot.sp)}`)) : null;
     body = [annualCard(y, yt.an, movs, rerender), medieCard(movs, y), conf];
   } else {
-    body = [yearsCard(mode, (yy) => { view.y = yy; rerender(); }, rerender)
-      || h("div.card", {}, h("div.empty", {}, "Ancora un anno solo."))];
+    body = [yearsPicker(yearSeries(mode), view.ysel || y, (yy) => { view.ysel = yy; rerender(); },
+      { net: view.netY, onNet: (v) => { view.netY = v; rerender(); },
+        onOpen: (yy) => { view.y = yy; view.ysel = yy; view.tab = "mesi"; rerender(); } })
+      || h("div.card", {}, h("div.empty", {}, "Nessun anno."))];
   }
   for (const c of body) if (c) c.dataset.keep = "";   // dentro le schede i riquadri restano aperti
 
@@ -202,15 +205,11 @@ function medieCard(movs, y) {
       : "Nessuno stipendio inserito in questo anno."));
 }
 
-function yearsCard(mode, pick, rerender) {
+/** Entrate (secondo la scelta Stipendio / + Investimenti / Tutto) e spese di ogni anno. */
+export function yearSeries(mode) {
   const ys = [...new Set([...D.years("personal"), ...D.years("comune")])].sort();
-  if (!ys.length) return null;
-  const series = ys.map((y) => {
-    const t = M.yearTable(D.allMovs(y), y, view.inc13, view.incex).totale;
-    return { label: String(y).slice(2), a: [t.st, t.st + t.iv, t.st + t.iv + t.ex][mode], b: t.sp, y };
+  return ys.map((yy) => {
+    const t = M.yearTable(D.allMovs(yy), yy, view.inc13, view.incex).totale;
+    return { y: yy, a: [t.st, t.st + t.iv, t.st + t.iv + t.ex][mode], b: t.sp };
   });
-  return h("div.card", {}, h("div.card-title.row.between", {}, h("span", {}, "Anno per anno"),
-    netToggle(view.netY, (v) => { view.netY = v; rerender(); })),
-  bars(series, { net: view.netY, onPick: (i) => pick(series[i].y), height: 140 }),
-  h("div.legend", {}, "Tocca un anno per aprirlo"));
 }

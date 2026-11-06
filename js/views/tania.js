@@ -5,7 +5,7 @@ import * as D from "../data.js";
 import * as M from "../model.js";
 import { h, C, moneyColor, monthNav, bars, sheet, toast, busy, fill, dateField } from "../ui.js";
 import { movimentoSheet, vociSheet, addedList } from "../forms.js";
-import { moneyHero, pctShort, catsCard, vociCard, openFolds, keepOpen, pageTabs, monthsTable } from "./parts.js";
+import { moneyHero, pctShort, catsCard, vociCard, openFolds, keepOpen, pageTabs, monthsTable, yearsPicker } from "./parts.js";
 import { fisseCard, budgetCard, scadenzeCard } from "./mensile.js";
 import { seduteCard, sogliaCard, tasseCard } from "./funzioni.js";
 import { semaforoLine } from "../semafori.js";
@@ -265,12 +265,11 @@ export function renderAnno(root, rerender, view, goMonth) {
     const series = ys.map((yy) => {
       let a = 0, b = 0;
       for (let i = 1; i <= 12; i++) { const t = D.taniaMonth(yy, i); a += t.entrate; b += t.spese; }
-      return { label: String(yy).slice(2), a, b, y: yy };
+      return { y: yy, a, b };
     });
-    body = [h("div.card", {}, h("div.card-title", {}, "Anno per anno"),
-      series.length > 1 ? bars(series, { onPick: (i) => { view.y = series[i].y; view.tab = "mesi"; rerender(); }, height: 140 })
-        : h("div.empty", {}, "Ancora un anno solo."),
-      h("div.legend", {}, "Entrate e spese di ogni anno — tocca un anno per aprirlo"))];
+    body = [yearsPicker(series, view.ysel || y, (yy) => { view.ysel = yy; rerender(); },
+      { onOpen: (yy) => { view.y = yy; view.ysel = yy; view.tab = "mesi"; rerender(); } })
+      || h("div.card", {}, h("div.empty", {}, "Nessun anno."))];
   }
   for (const c of body) if (c) c.dataset.keep = "";   // dentro le schede i riquadri restano aperti
   fill(root, top, hero, tabs, ...body);
