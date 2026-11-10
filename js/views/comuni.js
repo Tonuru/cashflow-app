@@ -48,11 +48,13 @@ export function render(root, rerender) {
   const q = h("input.search", { type: "search", placeholder: "Cerca…", value: view.q,
     oninput: (e) => { view.q = e.target.value; drawList(); } });
   const listBox = h("div");
+  // chi deve ancora la sua parte di ogni spesa (su tutti gli anni: un debito si può ripagare l'anno dopo)
+  const stato = M.comuneStato(D.years("comune").flatMap((yy) => D.comuneMovs(yy)), pa, pb);
   const drawList = () => {
     const rows = M.filterMovs(movs, { year: y, month: view.all ? null : m, text: view.q });
     const spese = rows.filter((x) => x.tipo === M.T.SPESA).reduce((a, x) => a + x.importo, 0);
     fill(listBox, h("div.muted.small.center", {}, `${rows.length} voci · spese ${M.fmtEur(spese)}`),
-      h("div.list", {}, rows.length ? rows.map((x) => comuneRow(x, pa, pb, key, () => comuneSheet(x, { onDone: rerender })))
+      h("div.list", {}, rows.length ? rows.map((x) => comuneRow(x, pa, pb, key, () => comuneSheet(x, { onDone: rerender }), stato[x.id]))
         : h("div.empty", {}, "Nessuna voce.")));
   };
   drawList();
@@ -72,23 +74,23 @@ function defaultDate() {
 
 // Come vengono contate le spese comuni (stesso testo dell'app sul PC)
 const HELP = `SPESA COMUNE
-Chi paga la spesa vede SUBITO la sua quota nelle spese del mese (es. Michele paga 10 € divisi 50/50: Michele vede 5 € quel giorno).
-L'altra persona vede la sua quota SOLO QUANDO L'HA RIPAGATA (con un rimborso), nel giorno del rimborso e con la categoria della spesa.
+Tutti e due vedono SUBITO la propria quota nelle spese del mese, il giorno della spesa (es. Tania paga 600 € di affitto divisi 60/40: Michele vede 360 € e Tania 240 € quel giorno).
+La quota di chi non ha pagato ha l'etichetta gialla «da ripagare» finché non l'ha ripagata (con un rimborso o una compensazione); poi diventa «ripagata». Qui nelle spese comuni la voce dice «Michele deve …» in giallo, poi «pari» in verde.
 
 PRESTITO (anticipo)
 Chi presta NON ha nessuna spesa: i soldi gli torneranno indietro.
 Chi riceve il prestito vede la spesa (categoria «Prestiti restituiti», con il «per cosa») solo QUANDO RESTITUISCE i soldi.
 
 RIMBORSO
-Sono i soldi che uno dà all'altro per pareggiare. Coprono i debiti partendo dal più vecchio; ogni spesa o prestito
-compare nelle spese del mese quando è coperto per intero.
+Sono i soldi che uno dà all'altro per pareggiare. Coprono i debiti partendo dal più vecchio; ogni spesa diventa
+«ripagata» quando è coperta per intero, ogni prestito compare nelle spese del mese quando è restituito per intero.
 Se uno dà più del dovuto, la differenza diventa un credito: quando torna indietro non conta come spesa per nessuno.
 
 COMPENSAZIONE
 Se tutti e due vi dovete dei soldi, i debiti si compensano da soli (vale come pagato).
 Esempio: Michele presta 10 € a Tania; poi Tania paga una spesa di 40 € divisa 20 e 20.
 · Tania vede subito i suoi 20 € e anche i 10 € del prestito (compensati con i 20 € che Michele le deve).
-· Michele non vede niente finché non dà a Tania i 10 € che restano: allora vede i suoi 20 €.
+· Michele vede subito i suoi 20 € «da ripagare (mancano 10 €)»: quando dà a Tania i 10 € che restano diventano «ripagata».
 
 IL SALDO in alto dice sempre chi deve quanto a chi, contando spese, prestiti e rimborsi.
 «Registra rimborso» prepara il rimborso giusto per pareggiare.`;
@@ -100,7 +102,7 @@ function helpCard() {
     })));
 }
 
-function comuneRow(x, pa, pb, key, onTap) {
+function comuneRow(x, pa, pb, key, onTap, st) {
   const rimb = x.tipo === M.T.RIMBORSO;
   const prest = x.tipo === M.T_PRESTITO;
   const mine = key && !rimb && !prest ? (x.importo * Number(x[key] || 0)) / 100 : null;
@@ -109,7 +111,9 @@ function comuneRow(x, pa, pb, key, onTap) {
     : prest ? `${M.fmtDate(x.data).slice(0, 5)} · prestito: ${x.pagato_da} presta a ${to}${x.categoria ? " · per " + x.categoria : ""}`
     : `${M.fmtDate(x.data).slice(0, 5)} · ${x.categoria || "—"} · pagato da ${x.pagato_da || "?"} · ${pa} ${Number(x.quota_a ?? 0)}% / ${pb} ${Number(x.quota_b ?? 0)}%`;
   return h("button.item" + (x._pending ? ".pending" : ""), { type: "button", onclick: onTap },
-    h("div.item-main", {}, h("div.item-title", {}, x.descrizione || (rimb ? "Rimborso" : prest ? "Prestito" : x.categoria || "—")),
+    h("div.item-main", {}, h("div.item-title", {}, x.descrizione || (rimb ? "Rimborso" : prest ? "Prestito" : x.categoria || "—"),
+        st && x.tipo === M.T.SPESA ? h("span.rp-tag." + (st.ripagata ? "ok" : "da"), {},
+          st.ripagata ? "Pari" : `${st.debitore} deve ${M.fmtEur(st.da_ripagare)}`) : null),
       h("div.item-sub", {}, sub)),
     h("div.item-amt", {}, h("div", { style: { color: rimb ? C.accent : prest ? C.amber : C.text } }, M.fmtEur(x.importo)),
       mine != null ? h("div.item-mine", {}, `mia ${M.fmtEur(mine)}`) : null));

@@ -7,6 +7,7 @@ import { quickAdd } from "../quick.js";
 import { semaforiDots } from "../semafori.js";
 import * as Mese from "./mese.js";
 import { obiettiviStati } from "./funzioni.js";
+import { rpTag } from "./parts.js";
 
 const ymNow = () => { const t = M.todayIso(); return [Number(t.slice(0, 4)), Number(t.slice(5, 7))]; };
 const daysTo = (iso) => Math.round((Date.parse(iso + "T00:00:00Z") - Date.parse(M.todayIso() + "T00:00:00Z")) / 864e5);
@@ -103,7 +104,8 @@ export function render(root, rerender, go) {
     return h("button.h-voce" + (x._pending ? ".pending" : ""), { onclick: () => Mese.openMov(x, rerender) },
       h("i.h-voce-ic", { style: { background: com ? "#2C2140" : out ? "#1C3527" : "#1C2B48" } }),
       h("div.h-voce-m", {}, h("div.h-voce-n", {}, (x.descrizione || x.categoria || "—") + (x.allegato ? " 📎" : "")),
-        h("div.h-voce-s", {}, [com ? "comune · tua parte" : x.categoria, when].filter(Boolean).join(" · "))),
+        h("div.h-voce-s", {}, [com ? "comune · tua parte" : x.categoria, when].filter(Boolean).join(" · ")),
+        M.ripagaTag(x) ? h("div.rp-line", {}, rpTag(x)) : null),
       h("b", { style: { color: out ? "#FF7A7A" : "#4BE39A" } }, (out ? "−" : "+") + M.fmtEur(x.importo).replace(" €", "")));
   };
   const lastCard = h("div.h-sec", {},

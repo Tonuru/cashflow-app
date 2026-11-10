@@ -557,3 +557,10 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .yp-y { min-width: 50px; text-align: center; font-size: 16px; }
 .yp-sum { margin-top: 8px; display: grid; gap: 6px; font-size: 14px; }
 .yp-open { width: 100%; margin-top: 10px; }
+
+/* quota comune pagata dall'altro: gialla finché non è ripagata, verde dopo */
+.rp-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 7px; font-size: 11px; font-weight: 700; vertical-align: 1px; white-space: nowrap; }
+.rp-tag.da { background: #4A3A12; color: #F5B83D; }
+.rp-tag.ok { background: #163A2A; color: #3DD68C; }
+.rp-line { margin-top: 3px; line-height: 1; }
+.rp-line .rp-tag { margin-left: 0; }

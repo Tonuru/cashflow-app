@@ -42,6 +42,12 @@ export function catsCard(movs, y, m, rerender, openMov, { title = "Dove sono and
     }) : h("div.empty", {}, empty || (m ? "Nessuna spesa in questo mese." : "Nessuna spesa in questo anno.")));
 }
 
+/** Etichetta gialla «da ripagare» / verde «ripagata» per la mia quota di una spesa comune pagata dall'altro. */
+export function rpTag(x) {
+  const t = M.ripagaTag(x);
+  return t ? h("span.rp-tag." + t.cls, {}, t.text) : null;
+}
+
 /** «Voci del mese»: entrate e spese in due colonne, con Tutte · Spese · Entrate. */
 export function vociCard(all, view, rerender, openMov) {
   const sorted = all.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
@@ -59,7 +65,8 @@ export function vociCard(all, view, rerender, openMov) {
     return h("button.mv-row" + (x._pending ? ".pending" : ""), { type: "button", onclick: () => openMov(x, rerender) },
       h("div.mv-main", {}, h("div.mv-t", {}, (x.descrizione || cat || x.tipo || "—") + (x.allegato ? " 📎" : "")),
         h("div.mv-s", {}, [M.fmtDate(x.data).slice(0, 5), cat || x.tipo, comune ? "spesa comune" : ""]
-          .filter(Boolean).join(" · "))),
+          .filter(Boolean).join(" · ")),
+        M.ripagaTag(x) ? h("div.rp-line", {}, rpTag(x)) : null),
       h("b.mv-in", { style: { color } }, spesa ? "" : amt),
       h("b.mv-out", { style: { color } }, spesa ? amt : ""));
   };

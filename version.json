@@ -1,1 +1,1 @@
-{ "version": "1.20.0", "notes": "Patrimonio come sul PC: incassi mese per mese e Anno per anno con la scelta dell'anno, senza il file foglio per foglio. Tolta la previsione." }
+{ "version": "1.21.0", "notes": "Spese comuni pagate dall'altra persona: la tua quota entra subito nel tuo mese con l'etichetta «Da ripagare», che diventa «Ripagata» quando l'hai ripagata; in Spese comuni ogni spesa dice chi deve ancora la sua parte o «Pari»." }

@@ -426,6 +426,12 @@ export function vociSheet(title, rows, { onTap } = {}) {
     h("div.list", {}, rows.map((m) => movRow(m, { onTap: onTap && ((x) => { s.close(); onTap(x); }) }))));
 }
 
+/** Etichetta gialla «da ripagare» / verde «ripagata» (quota comune pagata dall'altro). */
+function ripTag(m) {
+  const t = M.ripagaTag(m);
+  return t ? h("span.rp-tag." + t.cls, {}, t.text) : null;
+}
+
 export function movRow(m, { onTap, sign = "−", showCat = true } = {}) {
   const comune = m.origine === M.ORIGINE_COMUNE;
   const v = Number(m.importo || 0);
@@ -435,7 +441,7 @@ export function movRow(m, { onTap, sign = "−", showCat = true } = {}) {
   return h("button.item" + (comune ? ".comune" : "") + (m._pending ? ".pending" : ""),
     { type: "button", onclick: () => onTap?.(m) },
     h("div.item-main", {}, h("div.item-title", {}, (m.descrizione || cat || "—") + (m.allegato ? " 📎" : "")
-      + (m.etichetta ? ` · 🏷 ${m.etichetta}` : "")),
+      + (m.etichetta ? ` · 🏷 ${m.etichetta}` : ""), ripTag(m)),
       h("div.item-sub", {}, [M.fmtDate(m.data).slice(0, 5), showCat ? cat : "", comune ? "spesa comune" : m.metodo]
         .filter(Boolean).join(" · "))),
     h("div.item-amt", { style: { color } }, (neg ? "−" : "+") + M.fmtEur(Math.abs(v))));

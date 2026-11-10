@@ -287,7 +287,8 @@ export const T_PRESTITO = "Prestito";
 export const CAT_PRESTITI = "Prestiti restituiti";
 
 /** Spese comuni (e prestiti) nelle spese del mese di `me` — stessa logica di calc.comune_personal_rows:
- *  chi paga la spesa vede subito la sua quota; l'altro la vede quando l'ha ripagata (rimborso o compensazione);
+ *  chi paga la spesa vede subito la sua quota; anche l'altro la vede subito, con ripagata = false e
+ *  da_ripagare = quanto manca, che diventa ripagata = true (ripagata_il) quando è coperta (rimborso o compensazione);
  *  il prestito conta solo per chi lo riceve, quando lo restituisce; i debiti si coprono dal più vecchio. */
 export function comunePersonalRows(movs, me, pa, pb) {
   if (me !== pa && me !== pb) return [];
@@ -295,7 +296,7 @@ export function comunePersonalRows(movs, me, pa, pb) {
   const debts = { [pa]: [], [pb]: [] };
   const out = [];
   const eur = (v) => `${v.toFixed(2)} €`.replace(".", ",");
-  const emit = (person, it, when) => {
+  const emit = (person, it, when, aperta = false) => {
     if (person !== me || it.neutral) return;
     const src = it.src;
     const prest = src.tipo === T_PRESTITO;
@@ -305,12 +306,21 @@ export function comunePersonalRows(movs, me, pa, pb) {
     else {
       const q = Number(src[me === pa ? "quota_a" : "quota_b"] || 0);
       note = `quota ${q.toFixed(0)}% di ${eur(imp)} · pagato da ${src.pagato_da || "?"}`;
-      if (when !== src.data) note += ` il ${fmtDate(src.data)}, ripagata`;
+      if (aperta) note += ", da ripagare";
     }
-    out.push({ id: `com:${src.id}`, data: when, tipo: T.USCITA, importo: pyRound2(it.amount),
+    const row = { id: `com:${src.id}`, data: when, tipo: T.USCITA, importo: pyRound2(it.amount),
       categoria: prest ? CAT_PRESTITI : CAT_SPESE_COMUNI, sottocategoria: src.categoria || "",
       descrizione: src.descrizione || "", metodo: "", note, origine: ORIGINE_COMUNE,
-      etichetta: src.etichetta || "", allegato: src.allegato || "", comune_sub: src.sottocategoria || "" });
+      etichetta: src.etichetta || "", allegato: src.allegato || "", comune_sub: src.sottocategoria || "" };
+    if (aperta) { row.ripagata = false; row.da_ripagare = pyRound2(it.amount); it.row = row; }
+    out.push(row);
+  };
+  const covered = (person, it, when) => {
+    if (!it.row) { emit(person, it, when); return; }
+    it.row.ripagata = true;
+    it.row.ripagata_il = when;
+    it.row.da_ripagare = 0;
+    it.row.note = it.row.note.replace(", da ripagare", `, ripagata il ${fmtDate(when)}`);
   };
   const pay = (person, amount, when) => {
     for (const it of debts[person]) {
@@ -319,7 +329,8 @@ export function comunePersonalRows(movs, me, pa, pb) {
       const c = Math.min(it.rest, amount);
       it.rest -= c;
       amount -= c;
-      if (it.rest <= 0.004) emit(person, it, when);
+      if (it.row) it.row.da_ripagare = pyRound2(Math.max(it.rest, 0));
+      if (it.rest <= 0.004) covered(person, it, when);
     }
     debts[person] = debts[person].filter((it) => it.rest > 0.004);
     if (amount > 0.004) debts[other[person]].push({ src: {}, amount, rest: amount, neutral: true });
@@ -337,13 +348,38 @@ export function comunePersonalRows(movs, me, pa, pb) {
         const q = pyRound2((imp * Number(m[key] || 0)) / 100);
         if (q <= 0) continue;
         const it = { src: m, amount: q, rest: q };
-        if (person === payer) emit(person, it, m.data); else debts[person].push(it);
+        if (person === payer) emit(person, it, m.data);
+        else { emit(person, it, m.data, true); debts[person].push(it); }
       }
     }
     const o = Math.min(open(pa), open(pb));
     if (o > 0.004) { pay(pa, o, m.data); pay(pb, o, m.data); }
   }
   return out;
+}
+
+/** Per ogni spesa comune: la quota di chi NON ha pagato è già ripagata? (come calc.comune_stato)
+ *  { id: { debitore, creditore, quota, da_ripagare, ripagata, ripagata_il } } */
+export function comuneStato(movs, pa, pb) {
+  const out = {};
+  for (const me of [pa, pb]) {
+    for (const r of comunePersonalRows(movs, me, pa, pb)) {
+      if (r.ripagata === undefined) continue;
+      out[String(r.id).slice(4)] = { debitore: me, creditore: me === pa ? pb : pa, quota: r.importo,
+        da_ripagare: r.da_ripagare, ripagata: r.ripagata, ripagata_il: r.ripagata_il ?? null };
+    }
+  }
+  return out;
+}
+
+/** Etichetta «da ripagare» / «ripagata» per la quota comune nel mio mese (null se non serve). */
+export function ripagaTag(x) {
+  if (x.ripagata === false) {
+    const rest = Number(x.da_ripagare || 0);
+    return { cls: "da", text: "Da ripagare" + (rest < Number(x.importo || 0) - 0.004 ? ` (mancano ${fmtEur(rest)})` : "") };
+  }
+  if (x.ripagata === true) return { cls: "ok", text: "Ripagata" };
+  return null;
 }
 
 export function filterMovs(movs, { year, month, tipo, categoria, sotto, text, withAnnual = false } = {}) {
