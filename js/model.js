@@ -808,7 +808,7 @@ export function daIncassare(movs, today = todayIso(), giorni = 30) {
 }
 
 // impostazioni (schema.SETTING_DEFAULTS)
-export const SETTING_DEFAULTS = { obiettivi_attivi: false, patrimonio_attivo: true, previsione_attiva: true,
+export const SETTING_DEFAULTS = { fisse_attive: true, scadenze_attive: true, obiettivi_attivi: false, patrimonio_attivo: true, previsione_attiva: true,
   tasse_attivo: false, tasse_metodo: "indici", tasse_perc: 25, soglia_attiva: false, soglia_importo: 85000,
   soglia_categorie: ["Libera professione"], sedute_attive: true, sedute_mese: "pagamento", sedute_giorni: 30,
   dichiarazione_attiva: true, chiudi_mese_attivo: true };

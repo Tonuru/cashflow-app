@@ -1,1 +1,1 @@
-{ "version": "1.21.0", "notes": "Spese comuni pagate dall'altra persona: la tua quota entra subito nel tuo mese con l'etichetta «Da ripagare», che diventa «Ripagata» quando l'hai ripagata; in Spese comuni ogni spesa dice chi deve ancora la sua parte o «Pari»." }
+{"version": "1.22.0", "notes": "Se sul PC spegni le spese fisse o le scadenze (Impostazioni → Funzioni), il telefono non le mostra più: niente riquadro «Spese fisse», niente avvisi delle scadenze."}

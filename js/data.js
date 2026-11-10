@@ -281,10 +281,12 @@ export function taniaMonth(y, m) {
 const latest = (kind, y) => fileData(kind, y) || fileData(kind, yearsOf(kind).slice(-1)[0]);
 // ---------------------------------------------------------------- spese fisse, scadenze, budget
 const latestYear = (kind) => { const ys = yearsOf(kind); return ys.length ? ys[ys.length - 1] : new Date().getFullYear(); };
-export const fisse = (kind) => latest(kind, new Date().getFullYear())?.fisse || [];
+/** Spese fisse (vuote se le spese fisse sono spente in Impostazioni → Funzioni sul PC). */
+export const fisse = (kind) => (feature("fisse_attive") ? latest(kind, new Date().getFullYear())?.fisse || [] : []);
 export const personalInfo = () => latest("personal", new Date().getFullYear())?.info || {};
 /** Scadenze, con le «fatto» mandate dal telefono e non ancora scritte dal PC già applicate. */
 export function scadenze() {
+  if (!feature("scadenze_attive")) return [];   // spente in Impostazioni → Funzioni sul PC
   const list = (latest("personal", new Date().getFullYear())?.scadenze || []).map((x) => ({ ...x }));
   for (const op of pendingOps()) {
     if (op.op !== "scad_done") continue;
