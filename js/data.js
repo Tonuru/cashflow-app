@@ -35,7 +35,6 @@ export const copia = () => cache.copia;
 export const profile = () => ({ utente: cache.copia?.utente || "", profilo: cache.copia?.profilo || "michele",
   altra_persona: cache.copia?.altra_persona || "" });
 export const isMichele = () => profile().profilo !== "tania";
-export const lastRead = () => cache.letto;
 export const copyDate = () => cache.copia?.generata || null;
 
 // ---------------------------------------------------------------- codice di collegamento (dal PC)
@@ -141,7 +140,6 @@ const strip = (op) => { const o = { ...op }; delete o.sent; return o; };
 // ---------------------------------------------------------------- foto degli scontrini (script 4)
 export const scriptVersion = () => Number(cache.versione || 0);
 export const photosOk = () => !cache.versione || scriptVersion() >= 4;
-export const photosPending = () => photos.length;
 export const photoPendingFor = (percorso) => photos.find((p) => p.percorso === percorso) || null;
 
 /** Mette in coda la foto (base64 JPEG) da mandare al foglio: il PC la salva in OneDrive/…/Scontrini. */
@@ -205,7 +203,6 @@ export function pendingOps() {
   for (const op of queue) byId.set(op.qid, op);
   return [...byId.values()].sort((a, b) => (a.t || 0) - (b.t || 0));
 }
-export const pendingCount = () => queue.length;
 export const unsentCount = () => queue.filter((op) => !op.sent).length;
 
 function withPending(kind, y, movs) {
@@ -478,7 +475,6 @@ export function pendingFor(id) {
 /** Voci (anche dell'altro telefono) che nessun PC ha ancora scritto negli Excel. */
 export const notWrittenCount = () => pendingOps().length;
 export const otherPendingCount = () => (cache.altroCoda || []).length;
-export const copyBy = () => cache.copia?.aggiornata_da || cache.copia?.pc || "";
 
 /** Collega il foglio dell'altra persona (il suo codice CF1.): per vedere subito le sue spese comuni. */
 export async function linkOther(code) {

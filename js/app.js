@@ -13,7 +13,7 @@ import { notices } from "./views/mensile.js";
 import { noticesFunzioni } from "./views/funzioni.js";
 import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.22.0";
+export const APP_VERSION = "1.22.1";
 
 const TABS = [
   { id: "home", label: "Home", icon: "🏠" },
@@ -21,7 +21,7 @@ const TABS = [
   { id: "impostazioni", label: "Impostazioni", icon: "⚙️" },
 ];
 // pagine complete, aperte da «Dettagli» (o dalla home): in basso resta acceso «Dettagli»
-const SUB = new Set(["mese", "anno", "comuni", "eventi", "obiettivi", "scadenze", "cambiato", "investimenti"]);
+const SUB = new Set(["mese", "anno", "comuni", "eventi", "obiettivi", "scadenze", "investimenti"]);
 let tab = "home";
 try { tab = sessionStorage.getItem("cf.tab") || "home"; } catch { /* */ }
 if (!TABS.some((t) => t.id === tab) && !SUB.has(tab)) tab = "home";

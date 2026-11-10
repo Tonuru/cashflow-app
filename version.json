@@ -1,1 +1,1 @@
-{"version": "1.22.0", "notes": "Se sul PC spegni le spese fisse o le scadenze (Impostazioni → Funzioni), il telefono non le mostra più: niente riquadro «Spese fisse», niente avvisi delle scadenze."}
+{"version": "1.22.1", "notes": "Pulizia del codice: tolte le parti che non si usavano più, l'app è più leggera; la copia dei dati dal PC è più piccola, quindi si aggiorna prima. Nessun cambiamento in quello che vedi."}

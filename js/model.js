@@ -22,59 +22,6 @@ export const DEFAULT_METODI = ["Carta di debito", "Carta di credito", "Contanti"
 // ------------------------------------------------------------------ util.py
 export const pyRound2 = (x) => Number(Number(x).toFixed(2));
 const pad = (n, w = 2) => String(n).padStart(w, "0");
-export const isoDate = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-const EPOCH = Date.UTC(1899, 11, 30);
-
-export function serialToIso(v, withTime = false) {
-  const ms = EPOCH + Math.round(Number(v) * 86400000);
-  const d = new Date(ms);
-  if (isNaN(d)) return null;
-  if (!withTime) return isoDate(d);
-  return `${isoDate(d)}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-}
-export function isoToSerial(iso) {
-  const [d, t] = String(iso).split("T");
-  const [y, m, dd] = d.split("-").map(Number);
-  let ms = Date.UTC(y, m - 1, dd);
-  if (t) { const [h, mi, s] = t.split(":").map(Number); ms += ((h * 60 + mi) * 60 + (s || 0)) * 1000; }
-  return (ms - EPOCH) / 86400000;
-}
-
-function validYmd(y, m, d) {
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? isoDate(dt) : null;
-}
-
-export function parseDate(v) {
-  if (v == null || v === "" || typeof v === "boolean") return null;
-  if (typeof v === "number") return serialToIso(Math.floor(v));
-  const s = String(v).trim();
-  let m;
-  if ((m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/))) return validYmd(+m[3], +m[2], +m[1]);
-  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/))) return validYmd(+m[1], +m[2], +m[3]);
-  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/))) {
-    const yy = +m[3];
-    return validYmd(yy < 69 ? 2000 + yy : 1900 + yy, +m[2], +m[1]);
-  }
-  return null;
-}
-
-export function parseDatetime(v) {
-  if (v == null || v === "" || typeof v === "boolean") return null;
-  if (typeof v === "number") return serialToIso(v, true);
-  const s = String(v).trim();
-  let m;
-  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{2})(?::(\d{2}))?$/))) {
-    const d = validYmd(+m[3], +m[2], +m[1]);
-    return d ? `${d}T${pad(+m[4])}:${m[5]}:${pad(+(m[6] || 0))}` : null;
-  }
-  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/))) {
-    const d = validYmd(+m[1], +m[2], +m[3]);
-    return d ? `${d}T${m[4]}:${m[5]}:${m[6]}` : null;
-  }
-  const d = parseDate(s);
-  return d ? `${d}T00:00:00` : null;
-}
 
 export function parseAmount(v) {
   if (v == null || v === "" || typeof v === "boolean") return null;
@@ -113,21 +60,12 @@ export function newId() {
   crypto.getRandomValues(b);
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 }
-export function splitSubs(v) {
-  const out = [];
-  for (let x of String(v ?? "").replace(/,/g, ";").split(";")) {
-    x = x.trim();
-    if (x && !out.some((o) => o.toLowerCase() === x.toLowerCase())) out.push(x);
-  }
-  return out;
-}
 
 // ------------------------------------------------------------------ calc.py
 const ym = (iso) => (iso ? [Number(iso.slice(0, 4)), Number(iso.slice(5, 7))] : [0, 0]);
 export const inMonth = (iso, y, m) => { const [a, b] = ym(iso); return a === y && b === m; };
 export const inYear = (iso, y) => !!iso && Number(iso.slice(0, 4)) === y;
 export const isAnnual = (m) => m.origine === ORIGINE_ANNUALE;
-export const isEntrata = (m) => TIPI_ENTRATA.includes(m.tipo || T.USCITA);
 
 export function monthTotals(movs, y, mo) {
   let ent = 0, usc = 0, n = 0;
@@ -620,8 +558,6 @@ export function budgetStatus(spese, budget) {
 const ymN = (iso) => Number(iso.slice(0, 4)) * 12 + Number(iso.slice(5, 7)) - 1;
 const fromYmN = (n) => [Math.floor(n / 12), (n % 12) + 1];
 export const ymKey = (y, m) => `${y}-${pad(m)}`;
-export const OBIETTIVO_MODI = { manuale: "Versamenti a mano", percentuale: "% di quello che rimane ogni mese",
-  fisso: "Cifra fissa ogni mese" };
 
 /** rimane: {"AAAA-MM": quanto è rimasto quel mese} (serve solo al modo «percentuale»). */
 export function obiettivoStato(o, versamenti, rimane = {}, today = todayIso()) {
@@ -702,21 +638,6 @@ export function rimborsoRow(saldo, today = todayIso(), descrizione = "") {
     descrizione: descrizione || "Pareggio dei conti", pagato_da: saldo.debitore, quota_a: "", quota_b: "", note: "" };
 }
 
-// ---------------------------------------------------------------- previsione di fine anno (calc.previsione_anno)
-function scadOccurrences(scadenze, y) {
-  const out = [];
-  for (const x of scadenze || []) {
-    if (x.attiva === false || !x.data || !x.importo) continue;
-    let d = x.data, guard = 0;
-    while (d && Number(d.slice(0, 4)) <= y && guard < 400) {
-      if (Number(d.slice(0, 4)) === y) out.push([d, x]);
-      const n = RIPETI_MESI[x.ripeti || ""] ?? 12;
-      d = n ? addMonthsIso(d, n) : null;
-      guard++;
-    }
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------- patrimonio (core/patrimonio.py)
 export function patrimonioStoria(rows) {
@@ -841,107 +762,12 @@ export function receiptPath(dataIso, descrizione) {
   return `Scontrini/${d.slice(0, 4)}/${d}_${slug(descrizione)}_${hex}.jpg`;
 }
 
-// ---------------------------------------------------------------- cosa è cambiato (come cashflow/core/cambiamenti.py)
+// ---------------------------------------------------------------- nome «chiave» di una voce (come cashflow/core/cambiamenti.py)
 const CH_STOP = new Set(["pagamento", "pag", "pos", "addebito", "sdd", "carta", "bonifico", "a", "di", "del", "della",
   "il", "la", "per", "presso", "rata", "mensile", "abbonamento", "srl", "spa", "s.p.a", "s.r.l", "it", "eu", "www", "com"]);
 export function nomeChiave(descr) {
   const t = String(descr || "").toLowerCase().replace(/[\d.,:/#*\-_]+/g, " ");
   return t.split(/[^\p{L}\p{N}_]+/u).filter((w) => w && !CH_STOP.has(w) && w.length > 1).slice(0, 3).join(" ");
-}
-const chYm = (y, m, d) => { const i = y * 12 + (m - 1) + d; return [Math.floor(i / 12), (i % 12) + 1]; };
-const chK = (y, m) => `${y}-${m}`;
-const median3 = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
-
-export function cambiamenti(movs, y, m, mesi = 6, today = todayIso()) {
-  const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
-  const finito = y < ty || (y === ty && m < tm);
-  const byMonth = new Map(), rec = new Map(), cnt = new Map(), label = new Map();
-  for (const x of movs || []) {
-    if ((x.tipo || T.USCITA) !== T.USCITA || !x.data) continue;
-    const k = chK(Number(x.data.slice(0, 4)), Number(x.data.slice(5, 7)));
-    const v = Number(x.importo || 0);
-    const bm = byMonth.get(k) || new Map();
-    const c = x.categoria || "Senza categoria";
-    bm.set(c, (bm.get(c) || 0) + v);
-    byMonth.set(k, bm);
-    const n = nomeChiave(x.descrizione);
-    if (n) {
-      const r = rec.get(n) || new Map(); r.set(k, (r.get(k) || 0) + v); rec.set(n, r);
-      const q = cnt.get(n) || new Map(); q.set(k, (q.get(k) || 0) + 1); cnt.set(n, q);
-      if (!label.has(n)) label.set(n, String(x.descrizione || "").trim());
-    }
-  }
-  const cur = byMonth.get(chK(y, m)) || new Map();
-  const prev = [];
-  for (let i = 1; i <= 24 && prev.length < mesi; i++) { const k = chK(...chYm(y, m, -i)); if (byMonth.has(k)) prev.push(k); }
-  const sum = (mp) => [...mp.values()].reduce((a, b) => a + b, 0);
-  const res = { anno: y, mese: m, finito, mesi_confronto: prev.length, totale: pyRound2(sum(cur)), media_totale: 0,
-    variazioni: [], prezzi: [], nuove: [], sparite: [] };
-  if (prev.length) res.media_totale = pyRound2(prev.reduce((a, k) => a + sum(byMonth.get(k)), 0) / prev.length);
-  if (prev.length && finito) {
-    const cats = new Set([...cur.keys()]);
-    for (const k of prev) for (const c of byMonth.get(k).keys()) cats.add(c);
-    for (const c of cats) {
-      const now = cur.get(c) || 0;
-      const avg = prev.reduce((a, k) => a + (byMonth.get(k).get(c) || 0), 0) / prev.length;
-      const diff = now - avg;
-      if (Math.abs(diff) < 20) continue;
-      const pct = avg > 0 ? (diff / avg) * 100 : null;
-      if (pct != null && Math.abs(pct) < 25) continue;
-      res.variazioni.push({ categoria: c, ora: pyRound2(now), media: pyRound2(avg), diff: pyRound2(diff),
-        pct: pct != null ? Math.round(pct) : null });
-    }
-    res.variazioni.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || (a.categoria < b.categoria ? -1 : a.categoria > b.categoria ? 1 : 0));
-  }
-  const [m1, m2, m3, m4] = [1, 2, 3, 4].map((i) => chK(...chYm(y, m, -i)));
-  const kc = chK(y, m);
-  for (const [n, months] of rec) {
-    const now = months.get(kc);
-    const before = [m1, m2, m3, m4].filter((k) => months.has(k)).map((k) => months.get(k));
-    const cn = cnt.get(n);
-    if (before.length >= 3 && months.has(m1)) {
-      const b3 = before.slice(0, 3);
-      const tipico = median3(b3);
-      const fisso = [m1, m2, m3, m4].filter((k) => months.has(k)).every((k) => cn.get(k) === 1)
-        && Math.max(...b3) - Math.min(...b3) <= 0.03 * tipico;
-      if (now == null) {
-        if (finito && fisso) res.sparite.push({ nome: label.get(n), prima: pyRound2(tipico) });
-      } else if (fisso && cn.get(kc) === 1) {
-        const d = now - tipico;
-        if (Math.abs(d) >= 0.5 && (Math.abs(d) / tipico) * 100 >= 3 && Math.abs(d) / tipico < 0.6) {
-          res.prezzi.push({ nome: label.get(n), prima: pyRound2(tipico), ora: pyRound2(now), diff: pyRound2(d) });
-        }
-      }
-    } else if (now != null && months.has(m1) && months.has(m2) && !months.has(m3) && !months.has(m4)) {
-      const vals = [now, months.get(m1), months.get(m2)];
-      if (Math.max(...vals) - Math.min(...vals) <= 0.15 * Math.max(...vals)) res.nuove.push({ nome: label.get(n), importo: pyRound2(now) });
-    }
-  }
-  res.prezzi.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || (a.nome < b.nome ? -1 : a.nome > b.nome ? 1 : 0));
-  return res;
-}
-
-export function cambiamentiRighe(res, limite = 8) {
-  const out = [];
-  for (const p of res.prezzi) out.push(["price", `${p.nome}: da ${fmtEur(p.prima)} a ${fmtEur(p.ora)} (${p.diff > 0 ? "+" : "−"}${fmtEur(Math.abs(p.diff))})`]);
-  for (const v of res.variazioni) {
-    if (v.pct == null) out.push(["up", `${v.categoria}: ${fmtEur(v.ora)}, di solito niente`]);
-    else out.push([v.diff > 0 ? "up" : "down", `${v.categoria} ${v.diff > 0 ? "+" : "−"}${Math.abs(v.pct).toFixed(0)}% rispetto alla tua media (${fmtEur(v.ora)} invece di ${fmtEur(v.media)})`]);
-  }
-  for (const n of res.nuove) out.push(["new", `Nuova spesa ricorrente: ${n.nome} (${fmtEur(n.importo)} al mese)`]);
-  for (const g of res.sparite) out.push(["gone", `Non c'è più: ${g.nome} (di solito ${fmtEur(g.prima)}) — disdetta?`]);
-  return out.slice(0, limite);
-}
-
-export function cambiamentiRiassunto(res) {
-  if (!res.mesi_confronto) return "Servono almeno un paio di mesi di spese per fare il confronto.";
-  const k = res.mesi_confronto;
-  const base = k === 1 ? "confronto con il mese prima" : `confronto con i ${k} mesi prima`;
-  const tot = res.totale, avg = res.media_totale;
-  if (!res.finito) return `Mese in corso: finora ${fmtEur(tot)} di spese (media ${fmtEur(avg)} al mese) · ${base}.`;
-  const d = tot - avg;
-  if (Math.abs(d) < 1) return `Spese ${fmtEur(tot)}, come la tua media · ${base}.`;
-  return `Spese ${fmtEur(tot)}, ${fmtEur(Math.abs(d))} ${d > 0 ? "in più" : "in meno"} della tua media (${fmtEur(avg)}) · ${base}.`;
 }
 
 // ---------------------------------------------------------------- eventi (come cashflow/core/eventi.py: elenco)

@@ -1,8 +1,8 @@
-// «Dettagli»: le pagine complete (mese, panoramica, conto comune, eventi, obiettivi, scadenze, cosa è cambiato),
+// «Dettagli»: le pagine complete (mese, panoramica, conto comune, eventi, obiettivi, scadenze, patrimonio),
 // ognuna con un numero già visibile, così spesso non serve aprirla.
 import * as D from "../data.js";
 import * as M from "../model.js";
-import { h, C, fill, monthNav } from "../ui.js";
+import { h, C, fill } from "../ui.js";
 import { vociSheet } from "../forms.js";
 import * as Mese from "./mese.js";
 import { comuneSummary } from "./home.js";
@@ -11,13 +11,12 @@ import { scadenzeCard } from "./mensile.js";
 import * as Inv from "./investimenti.js";
 
 const ymNow = () => { const t = M.todayIso(); return [Number(t.slice(0, 4)), Number(t.slice(5, 7))]; };
-const prevYm = () => { const [y, m] = ymNow(); return m === 1 ? [y - 1, 12] : [y, m - 1]; };
 
 // stessi nomi del programma sul PC («Il mio mese» per Michele, «Spese comuni», «Patrimonio»)
 export const PAGES = {
   get mese() { return D.isMichele() ? "Il mio mese" : "Mese per mese"; },
   anno: "Panoramica", comuni: "Spese comuni", eventi: "Eventi", obiettivi: "Obiettivi",
-  scadenze: "Scadenze", cambiato: "Cosa è cambiato", investimenti: "Patrimonio",
+  scadenze: "Scadenze", investimenti: "Patrimonio",
 };
 
 function row(id, icon, bg, title, sub, val, color, go) {
@@ -72,13 +71,10 @@ export function render(root, rerender, go) {
 }
 
 // ---------------------------------------------------------------- pagine piccole
-export const cambiView = { y: prevYm()[0], m: prevYm()[1] };
-
 export function renderPage(id, root, rerender, go) {
   if (id === "eventi") return eventi(root, rerender);
   if (id === "obiettivi") return obiettivi(root, rerender);
   if (id === "scadenze") return scadenze(root, rerender);
-  if (id === "cambiato") return cambiato(root, rerender);
   if (id === "investimenti") return Inv.render(root, rerender, go);
   return null;
 }
@@ -112,18 +108,4 @@ function scadenze(root, rerender) {
         h("div.fx-name", {}, h("b", {}, x.nome), x.categoria ? h("div.small.muted", {}, x.categoria) : null),
         h("div", {}, h("div", {}, M.fmtDate(x.data)), x.importo ? h("div.small.muted", {}, M.fmtEur(x.importo)) : null))))
         : h("div.empty", {}, "Nessuna scadenza. Si aggiungono dal PC (Impostazioni → Scadenze).")));
-}
-
-function cambiato(root, rerender) {
-  const { y, m } = cambiView;
-  const res = M.cambiamenti(D.allMovsEveryYear(), y, m);
-  const rr = M.cambiamentiRighe(res, 20);
-  const ic = { up: ["▲", C.red], down: ["▼", C.green], price: ["€", C.amber], new: ["＋", "#7FAEFF"], gone: ["✕", C.muted] };
-  fill(root,
-    h("div.page-top", {}, monthNav(y, m, (yy, mm) => { cambiView.y = yy; cambiView.m = mm; rerender(); })),
-    h("div.card", { "data-keep": "" }, h("div.card-title", {}, `🔎 ${M.MESI[m - 1]} ${y}`),
-      h("div.small.muted", {}, M.cambiamentiRiassunto(res)),
-      rr.length ? h("div.cam-list", {}, rr.map(([k, t]) => h("div.cam-row", {},
-        h("b.cam-ic", { style: { color: ic[k][1] } }, ic[k][0]), h("span", {}, t))))
-        : h("div.empty", {}, res.mesi_confronto ? "Niente di particolare da segnalare." : "")));
 }
