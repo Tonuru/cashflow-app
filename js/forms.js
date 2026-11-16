@@ -90,7 +90,7 @@ function photoField(row) {
         : "📎 Scontrino allegato (si apre dal PC)") : "";
   };
   btn.onclick = () => {
-    if (!D.photosOk()) { toast("Per le foto serve lo script nuovo nel foglio Google: aggiornalo dal PC (Impostazioni → Telefono e altro PC).", "error"); return; }
+    if (!D.photosOk()) { toast("Per le foto serve lo script nuovo nel foglio Google: aggiornalo dal PC (Impostazioni → Collegamenti e sicurezza → Telefono e altro PC).", "error"); return; }
     file.click();
   };
   del.onclick = () => { picked = null; removed = true; draw(); };
