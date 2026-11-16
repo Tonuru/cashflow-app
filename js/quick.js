@@ -72,11 +72,61 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   const close = () => {
     if (closed) return;
     closed = true;
+    if (document.activeElement && panel.contains(document.activeElement)) document.activeElement.blur();
+    panel.style.transition = "";
+    panel.style.transform = "translateY(100%)";
     wrap.classList.remove("open");
     setTimeout(() => wrap.remove(), 220);
     unlockScroll();
   };
   wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
+
+  // trascina giù per chiudere: dalla barra in alto sempre, dal resto solo se è già tutto in cima
+  let y0 = null, x0 = 0, dy = 0, t0 = 0, drag = false, fromHead = false;
+  /** Vero se il tocco parte dentro qualcosa che è già scorso (elenco categorie o parte centrale). */
+  const scrolledAt = (el) => {
+    for (let n = el; n && n !== panel; n = n.parentElement) if (n.scrollTop > 0) return true;
+    return false;
+  };
+  panel.addEventListener("touchstart", (e) => {
+    y0 = null;
+    if (e.touches.length !== 1 || closed) return;
+    fromHead = !!e.target.closest(".qa-grab, .qa-headslot");
+    if (!fromHead && scrolledAt(e.target)) return;
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX;
+    dy = 0; t0 = Date.now(); drag = false;
+  }, { passive: true });
+  panel.addEventListener("touchmove", (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    const dx = Math.abs(e.touches[0].clientX - x0);
+    if (!drag) {
+      if (!fromHead) {
+        // dal contenuto: verso l'alto è uno scorrimento normale, lo lascio fare
+        if (dy < 0 || dx > Math.abs(dy)) { y0 = null; return; }
+        e.preventDefault();          // niente rimbalzo di iPhone mentre decido
+      }
+      if (dy < 8) return;
+      drag = true;
+      if (document.activeElement && panel.contains(document.activeElement)) document.activeElement.blur();
+    }
+    e.preventDefault();
+    panel.style.transition = "none";
+    panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  const endDrag = () => {
+    if (y0 == null) return;
+    y0 = null;
+    if (!drag) return;
+    drag = false;
+    const fast = dy > 40 && Date.now() - t0 < 250;
+    if (dy > Math.min(140, panel.offsetHeight * 0.25) || fast) close();
+    else { panel.style.transition = ""; panel.style.transform = ""; }
+  };
+  panel.addEventListener("touchend", endDrag);
+  panel.addEventListener("touchcancel", endDrag);
+  // un trascinamento non deve diventare un tocco sui pulsanti della barra
+  panel.addEventListener("click", (e) => { if (Math.abs(dy) > 8 && e.target.closest(".qa-headslot")) { e.stopPropagation(); e.preventDefault(); } dy = 0; }, true);
   document.body.append(wrap);
   lockScroll();
   requestAnimationFrame(() => wrap.classList.add("open"));
@@ -187,6 +237,9 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   // aperta o quando la spesa comune ha tante righe e non sta tutto nello schermo
   const scroller = h("div.qa-scroll");
   const foot = h("div.qa-foot");
+  const headSlot = h("div.qa-headslot");
+  // struttura fissa: si riempiono solo le parti, così la parte centrale non perde il punto in cui eri
+  fill(panel, h("div.qa-grab"), headSlot, scroller, foot, fileIn);
   function updateLive() {
     const v = value();
     const what = { spesa: "Salva spesa comune", prestito: "Salva prestito", rimborso: "Salva rimborso" }[st.ctipo];
@@ -373,6 +426,7 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
 
   // ---------------------------------------------------------------- disegno
   function draw() {
+    const y = scroller.scrollTop;    // punto in cui eri: si rimette alla fine
     const com = kind === "comune";
     panel.classList.toggle("com", com);
     const seg = h("div.qa-seg", {},
@@ -457,12 +511,11 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     }
 
     bSave.className = com ? "qa-save com" : "qa-save";
-    const y = scroller.scrollTop;
     fill(scroller, semaforoLine(kind), amt, com ? share : null, h("div.qa-descrbox", {}, descrIn, dlDescr), comBox, grid, infoRow);
     fill(foot, err, bSave);
-    fill(panel, h("div.qa-grab"), head, scroller, foot, fileIn);
-    scroller.scrollTop = y;
+    fill(headSlot, head);
     updateLive();
+    scroller.scrollTop = y;          // dopo i testi aggiornati, se no l'altezza è ancora quella vecchia
   }
   draw();
   return { close };
