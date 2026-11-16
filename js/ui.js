@@ -44,6 +44,21 @@ export function toast(msg, kind = "", ms = 0) {
 
 // la pagina dietro un pannello aperto non scorre (anche su iPhone, dove overflow:hidden non basta)
 let scrollLocks = 0, lockedY = 0;
+// Parte dello schermo davvero visibile (su iPhone la tastiera la riduce): i pannelli che salgono dal basso
+// si adattano a questa, così i pulsanti in fondo non finiscono sotto la tastiera o sotto la barra in basso.
+(function trackViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const set = () => {
+    const r = document.documentElement.style;
+    r.setProperty("--vvh", `${Math.round(vv.height)}px`);
+    r.setProperty("--vvt", `${Math.round(vv.offsetTop)}px`);
+  };
+  vv.addEventListener("resize", set);
+  vv.addEventListener("scroll", set);
+  set();
+})();
+
 export function lockScroll() {
   if (scrollLocks++ > 0) return;
   lockedY = window.scrollY;

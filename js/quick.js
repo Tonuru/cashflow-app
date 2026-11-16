@@ -183,6 +183,10 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
   const bSave = h("button.qa-save", { type: "button" });
   bSave.onclick = () => busy(bSave, save().catch((e) => { err.textContent = e.message; }));
   const err = h("div.form-err");
+  // parte centrale che scorre + fondo fisso con «Salva»: il pulsante resta sempre a vista, anche con la tastiera
+  // aperta o quando la spesa comune ha tante righe e non sta tutto nello schermo
+  const scroller = h("div.qa-scroll");
+  const foot = h("div.qa-foot");
   function updateLive() {
     const v = value();
     const what = { spesa: "Salva spesa comune", prestito: "Salva prestito", rimborso: "Salva rimborso" }[st.ctipo];
@@ -453,8 +457,11 @@ export function quickAdd(kind0 = "personal", { onDone } = {}) {
     }
 
     bSave.className = com ? "qa-save com" : "qa-save";
-    fill(panel, h("div.qa-grab"), head, semaforoLine(kind), amt, com ? share : null, h("div.qa-descrbox", {}, descrIn, dlDescr),
-      comBox, grid, infoRow, err, bSave, fileIn);
+    const y = scroller.scrollTop;
+    fill(scroller, semaforoLine(kind), amt, com ? share : null, h("div.qa-descrbox", {}, descrIn, dlDescr), comBox, grid, infoRow);
+    fill(foot, err, bSave);
+    fill(panel, h("div.qa-grab"), head, scroller, foot, fileIn);
+    scroller.scrollTop = y;
     updateLive();
   }
   draw();

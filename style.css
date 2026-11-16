@@ -116,9 +116,9 @@ table { border-collapse: separate; border-spacing: 0; font-size: 13px; font-vari
 .abox { display: block; }
 
 /* ------------------------------------------------ pannelli dal basso e moduli */
-.sheet-wrap { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0); transition: background .25s; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-wrap { position: fixed; left: 0; right: 0; top: var(--vvt, 0px); height: var(--vvh, 100%); z-index: 50; background: rgba(0,0,0,0); transition: background .25s; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-wrap.open { background: rgba(0,0,0,.55); }
-.sheet { width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; background: var(--card); border-radius: 20px 20px 0 0;
+.sheet { width: 100%; max-width: 640px; max-height: calc(var(--vvh, 100vh) * .92); overflow-y: auto; background: var(--card); border-radius: 20px 20px 0 0;
   padding: 0 16px calc(18px + var(--safe-b)); transform: translateY(100%); transition: transform .25s ease-out; border: 1px solid var(--border); border-bottom: 0; }
 .sheet-wrap.open .sheet { transform: none; }
 .sheet-head { position: sticky; top: 0; background: var(--card); padding: 8px 0 6px; z-index: 2; text-align: center; }
@@ -322,12 +322,15 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .ev-cat i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
 
 /* ------------------------------------------------ aggiunta veloce (tutto a vista) */
-.qa-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0); transition: background .2s; display: flex; align-items: flex-end; }
+.qa-wrap { position: fixed; left: 0; right: 0; top: var(--vvt, 0px); height: var(--vvh, 100%); z-index: 60; background: rgba(0,0,0,0); transition: background .2s; display: flex; align-items: flex-end; }
 .qa-wrap.open { background: rgba(0,0,0,.5); }
 .qa { width: 100%; max-width: 720px; margin: 0 auto; height: calc(100% - var(--safe-t) - 10px); background: #161C26;
   border-radius: 24px 24px 0 0; padding: 8px 14px calc(12px + var(--safe-b)); box-shadow: 0 -12px 40px rgba(0,0,0,.5);
   transform: translateY(100%); transition: transform .22s ease-out; display: flex; flex-direction: column; gap: 8px; }
 .qa-wrap.open .qa { transform: none; }
+.qa-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 8px; margin: 0 -14px; padding: 2px 14px 6px; }
+.qa-foot { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
 .qa-grab { width: 40px; height: 5px; border-radius: 3px; background: #3A4656; margin: 0 auto; flex-shrink: 0; }
 .qa-head { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 .qa-x { font-size: 20px; color: var(--muted); width: 40px; height: 40px; } .qa-full { font-size: 24px; }

@@ -1,1 +1,1 @@
-{"version": "1.22.1", "notes": "Pulizia del codice: tolte le parti che non si usavano più, l'app è più leggera; la copia dei dati dal PC è più piccola, quindi si aggiorna prima. Nessun cambiamento in quello che vedi."}
+{"version": "1.22.2", "notes": "Aggiunta veloce: il pulsante «Salva» resta sempre in fondo e a vista, anche nella spesa comune e con la tastiera aperta; il resto del pannello si scorre."}
