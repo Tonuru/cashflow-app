@@ -10,7 +10,7 @@ import { view as annoView, yearSeries } from "./anno.js";
 import { yearsPicker } from "./parts.js";
 
 const K_LINK = "cf.investLink";
-export const view = { y: new Date().getFullYear() };
+export const view = { y: new Date().getFullYear(), extra: false };     // extra: pulsante «Extra», spento a ogni apertura
 
 export const data = () => D.copia()?.investimenti || null;
 export const available = () => D.isMichele() && !!data();
@@ -50,15 +50,24 @@ const PILASTRI = [["liquidita", "1° Liquidità", "#0ea5e9"], ["fondo", "2° Fon
 const SOTTO = [["btp", "BTP"], ["buoni", "Buoni"], ["extra", "Extra"], ["azionario", "Azionario"]];
 const MAX_RIGHE = 5;
 
-/** I pilastri della copia; con una copia di un PC non ancora aggiornato il 4° si ricava dalle sue parti. */
-function pilastriDi(d) {
+/** I pilastri della copia, nella forma del PC 2.26.3: pilastri e totale SENZA gli Extra, gli Extra a parte e
+ *  «totale_extra» con loro (copie di PC più vecchi portate alla stessa forma). Con il pulsante «Extra» acceso gli
+ *  Extra entrano nel 4° e nel totale. */
+function pilastriDi(d, conExtra) {
   const p = { ...(d.pilastri || {}) };
-  if (p.lungo == null) p.lungo = SOTTO.reduce((a, [k]) => a + (p[k] || 0), 0);
+  if (p.extra_tot != null) {                       // copia del PC 2.26.2
+    if (p.includi_extra) { p.lungo -= p.extra_tot; p.totale -= p.extra_tot; }
+    p.extra = p.extra_tot;
+  }
+  if (p.lungo == null) p.lungo = (p.btp || 0) + (p.buoni || 0) + (p.azionario || 0);
+  if (p.totale_extra == null) p.totale_extra = (p.totale || 0) + (p.extra || 0);
+  p.totale_no_extra = p.totale;
+  if (conExtra && p.extra) { p.lungo += p.extra; p.totale = p.totale_extra; }
   return p;
 }
 
 /** Righe [nome, importo] e nota di un pilastro, dai dati del file Investimenti: come dettagli() sul PC. */
-function dettaglio(k, d, p) {
+function dettaglio(k, d, p, conExtra) {
   const voci = (d.voci || {})[k] || [];
   if (k === "liquidita") {
     const cs = d.conti || [], ci = d.conti_info || {};
@@ -74,15 +83,14 @@ function dettaglio(k, d, p) {
       ? h("b", { style: { color: C.amber } }, `mancano ${eur0(ci.mancanti_fondo)}`) : "raggiunta ✅"] : null];
   }
   if (k === "spese") return [voci.map((x) => [x.nome, x.valore]), null];
-  const fuori = p.extra_tot && p.includi_extra === false;      // «Includi Extra» = No nell'app Investimenti
-  return [SOTTO.filter(([kk]) => p[kk]).map(([kk, n]) => [n, p[kk]]),
-    fuori ? ["Extra ", h("b", {}, M.fmtEur(p.extra_tot)), " fuori dal totale: nell'app Investimenti «Includi Extra» è No "
-      + `(con gli Extra il totale sarebbe ${M.fmtEur(p.totale + p.extra_tot)})`]
-      : p.totale_no_extra != null && p.extra ? ["Senza gli extra il totale è ", h("b", {}, M.fmtEur(p.totale_no_extra))] : null];
+  return [SOTTO.filter(([kk]) => p[kk] && (kk !== "extra" || conExtra)).map(([kk, n]) => [n, p[kk]]),
+    !p.extra ? null : conExtra ? ["Senza gli Extra il totale è ", h("b", {}, M.fmtEur(p.totale_no_extra))]
+      : ["Extra ", h("b", {}, M.fmtEur(p.extra)), " nascosti: «＋ Mostra Extra» in alto li aggiunge qui e nel totale (",
+        h("b", {}, M.fmtEur(p.totale_extra)), ")"]];
 }
 
-function pilastro(k, n, col, v, tot, d, p) {
-  const [righe, nota] = dettaglio(k, d, p);
+function pilastro(k, n, col, v, tot, d, p, conExtra) {
+  const [righe, nota] = dettaglio(k, d, p, conExtra);
   const perc = tot > 0 ? Math.round(v / tot * 100) : 0;
   return h("div.card.pil", { id: `pil-${k}`, style: { borderTopColor: col } },
     h("div.row.between", {}, h("b", {}, n), h("span.pil-pct", {}, `${perc}%`)),
@@ -113,7 +121,7 @@ export function render(root, rerender, go) {
     return;
   }
   // stile «B · Quattro pilastri», come sul PC: totale con la barra colorata, poi un riquadro per pilastro
-  const p = pilastriDi(d);
+  const p = pilastriDi(d, view.extra);
   const tot = p.totale ?? PILASTRI.reduce((a, [k]) => a + (p[k] || 0), 0);
   const inc0 = d.incassi || {};
   const big = h("div.card.iv-big", { "data-keep": "" },
@@ -121,8 +129,10 @@ export function render(root, rerender, go) {
     inc0.anno ? h("div.small", {}, `Incassi ${inc0.anno}: `, h("b", { style: { color: C.green } }, M.fmtEur(inc0.totale_anno, true)),
       h("span.muted", {}, ` · media ${M.fmtEur(inc0.media_mese, true)} al mese`)) : null,
     h("div.pil-stack", {}, PILASTRI.map(([k, , col]) => h("i", { style: { width: `${tot > 0 ? (p[k] || 0) / tot * 100 : 0}%`, background: col } }))),
-    h("div.pil-leg", {}, PILASTRI.map(([, n, col]) => h("span", {}, h("i", { style: { background: col } }), n))));
-  const pil = h("div.pil-grid", { "data-keep": "" }, PILASTRI.map(([k, n, col]) => pilastro(k, n, col, p[k] || 0, tot, d, p)));
+    h("div.pil-leg", {}, PILASTRI.map(([, n, col]) => h("span", {}, h("i", { style: { background: col } }), n))),
+    p.extra ? h("button.btn.pil-extra" + (view.extra ? ".on" : ""), { type: "button",
+      onclick: () => { view.extra = !view.extra; rerender(); } }, view.extra ? "－ Nascondi Extra" : "＋ Mostra Extra") : null);
+  const pil = h("div.pil-grid", { "data-keep": "" }, PILASTRI.map(([k, n, col]) => pilastro(k, n, col, p[k] || 0, tot, d, p, view.extra)));
 
   // prossime scadenze
   const sc = d.scadenze || [];
@@ -178,7 +188,7 @@ export function render(root, rerender, go) {
   if (anni) anni.dataset.keep = "";
 
   // lo storico del patrimonio mese per mese sta qui (prima era in Panoramica), come sul PC
-  const storia = patrimonioCard();
+  const storia = patrimonioCard(view.extra);
   if (storia) storia.dataset.keep = "";
   // (niente più «Il file, foglio per foglio», come sul PC)
   fill(root, big, pil, mesi, scad, anni, head, incassi, storia, linkCard(rerender));

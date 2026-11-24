@@ -13,7 +13,7 @@ import { notices } from "./views/mensile.js";
 import { noticesFunzioni } from "./views/funzioni.js";
 import { semaforiDots } from "./semafori.js";
 
-export const APP_VERSION = "1.23.2";
+export const APP_VERSION = "1.23.3";
 
 const TABS = [
   { id: "home", label: "Home", icon: "🏠" },

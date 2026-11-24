@@ -128,26 +128,25 @@ export function chiudiMeseCard(rerender) {
 }
 
 // ---------------------------------------------------------------- patrimonio (Michele)
-export function patrimonioCard() {
+export function patrimonioCard(conExtra = false) {
   if (!D.isMichele() || !D.feature("patrimonio_attivo")) return null;
-  const rows = M.patrimonioStoria(D.lista("personal", "patrimonio"));
+  const rows = M.patrimonioStoria(D.lista("personal", "patrimonio"), conExtra);
   if (!rows.length) return null;
   const last = rows[rows.length - 1];
   const shown = rows.slice(-12);
-  const max = Math.max(...shown.map((r) => Number(r.totale || 0)), 1);
+  const max = Math.max(...shown.map((r) => Number(r.mostrato || 0)), 1);
   return h("div.card", { "data-fold": "patrimonio" }, h("div.card-title", {}, "📈 Storico del patrimonio"),
-    h("div.big-val", {}, M.fmtEur(last.totale)),
+    h("div.big-val", {}, M.fmtEur(last.mostrato)),
     h("div.small.muted", {}, `${M.MESI[Number(last.data.slice(5, 7)) - 1]} ${last.data.slice(0, 4)}`
-      + (last.variazione != null ? ` · ${M.fmtEur(last.variazione, true)} sul mese prima` : "")),
+      + (last.variazione != null ? ` · ${M.fmtEur(last.variazione, true)} sul mese prima` : "")
+      + (conExtra ? " · con gli Extra" : " · senza gli Extra")),
     last.fondo != null || last.lungo != null
       ? h("div.small", {}, `1° ${M.fmtEur(last.liquidita)} · 2° ${M.fmtEur(last.fondo)} · 3° ${M.fmtEur(last.spese)}`
-        + ` · 4° ${M.fmtEur(last.lungo)}`)
-      : h("div.small", {}, `liquidità ${M.fmtEur(last.liquidita)} · BTP ${M.fmtEur(last.btp)} · buoni ${M.fmtEur(last.buoni)}`
-        + ` · extra ${M.fmtEur(last.extra)}`),
+        + ` · 4° ${M.fmtEur(Number(last.lungo || 0) + (conExtra ? Number(last.extra || 0) : 0))}`) : null,
     h("div.fx-list", {}, shown.slice().reverse().map((r) => h("div.pt-row", {},
       h("span.pt-m", {}, `${M.MESI_BREVI[Number(r.data.slice(5, 7)) - 1]} ${r.data.slice(2, 4)}`),
-      h("div.pt-bar", {}, h("i", { style: { width: `${(Number(r.totale || 0) / max) * 100}%` } })),
-      h("span.pt-v", {}, M.fmtEur(r.totale))))),
+      h("div.pt-bar", {}, h("i", { style: { width: `${(Number(r.mostrato || 0) / max) * 100}%` } })),
+      h("span.pt-v", {}, M.fmtEur(r.mostrato))))),
     h("div.muted.small", {}, "Solo gli investimenti, letti dal file Investimenti dal PC (un valore al mese)."));
 }
 

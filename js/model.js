@@ -640,11 +640,13 @@ export function rimborsoRow(saldo, today = todayIso(), descrizione = "") {
 
 
 // ---------------------------------------------------------------- patrimonio (core/patrimonio.py)
-export function patrimonioStoria(rows) {
+/** Come patrimonio.storia() sul PC: «mostrato» è il totale senza gli Extra o, con il pulsante, con loro. */
+export function patrimonioStoria(rows, conExtra = false) {
+  const tot = (r) => Number((conExtra && r.totale_extra != null ? r.totale_extra : r.totale) || 0);
   const out = [];
   let prev = null;
   for (const r of (rows || []).filter((r) => r.data).sort((a, b) => (a.data < b.data ? -1 : 1))) {
-    out.push({ ...r, variazione: prev ? pyRound2(Number(r.totale || 0) - Number(prev.totale || 0)) : null });
+    out.push({ ...r, mostrato: tot(r), variazione: prev ? pyRound2(tot(r) - tot(prev)) : null });
     prev = r;
   }
   return out;
