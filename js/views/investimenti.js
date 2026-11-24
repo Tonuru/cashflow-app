@@ -74,8 +74,11 @@ function dettaglio(k, d, p) {
       ? h("b", { style: { color: C.amber } }, `mancano ${eur0(ci.mancanti_fondo)}`) : "raggiunta ✅"] : null];
   }
   if (k === "spese") return [voci.map((x) => [x.nome, x.valore]), null];
+  const fuori = p.extra_tot && p.includi_extra === false;      // «Includi Extra» = No nell'app Investimenti
   return [SOTTO.filter(([kk]) => p[kk]).map(([kk, n]) => [n, p[kk]]),
-    p.totale_no_extra != null && p.extra ? ["Senza gli extra il totale è ", h("b", {}, M.fmtEur(p.totale_no_extra))] : null];
+    fuori ? ["Extra ", h("b", {}, M.fmtEur(p.extra_tot)), " fuori dal totale: nell'app Investimenti «Includi Extra» è No "
+      + `(con gli Extra il totale sarebbe ${M.fmtEur(p.totale + p.extra_tot)})`]
+      : p.totale_no_extra != null && p.extra ? ["Senza gli extra il totale è ", h("b", {}, M.fmtEur(p.totale_no_extra))] : null];
 }
 
 function pilastro(k, n, col, v, tot, d, p) {
