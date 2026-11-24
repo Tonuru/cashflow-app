@@ -139,8 +139,11 @@ export function patrimonioCard() {
     h("div.big-val", {}, M.fmtEur(last.totale)),
     h("div.small.muted", {}, `${M.MESI[Number(last.data.slice(5, 7)) - 1]} ${last.data.slice(0, 4)}`
       + (last.variazione != null ? ` · ${M.fmtEur(last.variazione, true)} sul mese prima` : "")),
-    h("div.small", {}, `liquidità ${M.fmtEur(last.liquidita)} · BTP ${M.fmtEur(last.btp)} · buoni ${M.fmtEur(last.buoni)}`
-      + ` · extra ${M.fmtEur(last.extra)}`),
+    last.fondo != null || last.lungo != null
+      ? h("div.small", {}, `1° ${M.fmtEur(last.liquidita)} · 2° ${M.fmtEur(last.fondo)} · 3° ${M.fmtEur(last.spese)}`
+        + ` · 4° ${M.fmtEur(last.lungo)}`)
+      : h("div.small", {}, `liquidità ${M.fmtEur(last.liquidita)} · BTP ${M.fmtEur(last.btp)} · buoni ${M.fmtEur(last.buoni)}`
+        + ` · extra ${M.fmtEur(last.extra)}`),
     h("div.fx-list", {}, shown.slice().reverse().map((r) => h("div.pt-row", {},
       h("span.pt-m", {}, `${M.MESI_BREVI[Number(r.data.slice(5, 7)) - 1]} ${r.data.slice(2, 4)}`),
       h("div.pt-bar", {}, h("i", { style: { width: `${(Number(r.totale || 0) / max) * 100}%` } })),

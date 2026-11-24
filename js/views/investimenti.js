@@ -15,7 +15,6 @@ export const view = { y: new Date().getFullYear() };
 export const data = () => D.copia()?.investimenti || null;
 export const available = () => D.isMichele() && !!data();
 
-const nn = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const eur0 = (v) => M.fmtEur(v).replace(/,\d\d €$/, " €");
 const dIso = (iso) => M.fmtDate(String(iso).slice(0, 10));
 const when = (iso) => {
@@ -45,40 +44,42 @@ export function summary() {
   return { text: eur0(tot), sub: next ? `prossima scadenza ${dIso(next.data).slice(0, 5)} · ${next.tipo}` : "solo da guardare" };
 }
 
-// i quattro pilastri: chiave, nome e colore (gli stessi del PC, ui/pilastri.py)
-const PILASTRI = [["liquidita", "Liquidità", C.accent], ["btp", "BTP", C.green], ["buoni", "Buoni postali", C.amber],
-  ["extra", "Extra", "#B07CFF"]];
-const MAX_RIGHE = 4;
+// i quattro pilastri dell'app Investimenti: chiave, nome e colore (gli stessi del PC, ui/pilastri.py)
+const PILASTRI = [["liquidita", "1° Liquidità", "#0ea5e9"], ["fondo", "2° Fondo di emergenza", "#f59e0b"],
+  ["spese", "3° Spese previste", "#94a3b8"], ["lungo", "4° Lungo periodo", "#8b5cf6"]];
+const SOTTO = [["btp", "BTP"], ["buoni", "Buoni"], ["extra", "Extra"], ["azionario", "Azionario"]];
+const MAX_RIGHE = 5;
+
+/** I pilastri della copia; con una copia di un PC non ancora aggiornato il 4° si ricava dalle sue parti. */
+function pilastriDi(d) {
+  const p = { ...(d.pilastri || {}) };
+  if (p.lungo == null) p.lungo = SOTTO.reduce((a, [k]) => a + (p[k] || 0), 0);
+  return p;
+}
 
 /** Righe [nome, importo] e nota di un pilastro, dai dati del file Investimenti: come dettagli() sul PC. */
-function dettaglio(k, d) {
-  const g = (v) => h("b", { style: { color: C.green } }, M.fmtEur(v, true));
-  const scaduti = (x) => (x.scaduti ? ` · ${nn(x.scaduti, "già scaduto", "già scaduti")}, non contat${x.scaduti === 1 ? "o" : "i"}` : "");
-  const sc = d.scadenze || [];
+function dettaglio(k, d, p) {
+  const voci = (d.voci || {})[k] || [];
   if (k === "liquidita") {
     const cs = d.conti || [], ci = d.conti_info || {};
     const ia = cs.reduce((a, c) => a + (c.interesse_anno || 0), 0);
-    const nota = [cs.length ? ["Interessi in un anno: ", h("b", { style: { color: ia >= 0 ? C.green : C.red } }, M.fmtEur(ia, true))] : null,
-      ci.soglia != null ? [` · soglia ${eur0(ci.soglia)}: `, ci.mancanti > 0
+    const nota = [cs.length ? ["Interessi dei conti in un anno: ", h("b", { style: { color: ia >= 0 ? C.green : C.red } }, M.fmtEur(ia, true))] : null,
+      ci.soglia != null ? [h("br"), `Soglia ${eur0(ci.soglia)}: `, ci.mancanti > 0
         ? h("b", { style: { color: C.amber } }, `mancano ${eur0(ci.mancanti)}`) : "raggiunta ✅"] : null];
-    return [cs.map((c) => [c.banca, c.saldo]), cs.length || ci.soglia != null ? nota : null];
+    return [voci.map((x) => [x.nome, x.valore]), cs.length || ci.soglia != null ? nota : null];
   }
-  if (k === "btp") {
-    const b = d.btp || {};
-    return [sc.filter((s) => s.tipo === "BTP").map((s) => [s.nome, s.importo]), b.n
-      ? [`Mercato ${M.fmtEur(b.mercato)} · a scadenza ${M.fmtEur(b.finale)}`, h("br"), "Guadagno netto ", g(b.guadagno_netto), scaduti(b)] : null];
+  if (k === "fondo") {
+    const ci = d.conti_info || {};
+    return [voci.map((x) => [x.nome, x.valore]), ci.soglia_fondo != null ? [`Soglia ${eur0(ci.soglia_fondo)}: `, ci.mancanti_fondo > 0
+      ? h("b", { style: { color: C.amber } }, `mancano ${eur0(ci.mancanti_fondo)}`) : "raggiunta ✅"] : null];
   }
-  if (k === "buoni") {
-    const bu = d.buoni || {};
-    return [sc.filter((s) => s.tipo === "Buono").map((s) => [s.nome, s.importo]), bu.n
-      ? [`A scadenza netti ${M.fmtEur(bu.finale_netto)}`, h("br"), "Guadagno netto ", g(bu.guadagno_netto), scaduti(bu)] : null];
-  }
-  const p = d.pilastri || {};
-  return [[], p.totale_no_extra != null && p.extra ? ["Senza gli extra il totale è ", h("b", {}, M.fmtEur(p.totale_no_extra))] : null];
+  if (k === "spese") return [voci.map((x) => [x.nome, x.valore]), null];
+  return [SOTTO.filter(([kk]) => p[kk]).map(([kk, n]) => [n, p[kk]]),
+    p.totale_no_extra != null && p.extra ? ["Senza gli extra il totale è ", h("b", {}, M.fmtEur(p.totale_no_extra))] : null];
 }
 
-function pilastro(k, n, col, v, tot, d) {
-  const [righe, nota] = dettaglio(k, d);
+function pilastro(k, n, col, v, tot, d, p) {
+  const [righe, nota] = dettaglio(k, d, p);
   const perc = tot > 0 ? Math.round(v / tot * 100) : 0;
   return h("div.card.pil", { id: `pil-${k}`, style: { borderTopColor: col } },
     h("div.row.between", {}, h("b", {}, n), h("span.pil-pct", {}, `${perc}%`)),
@@ -109,7 +110,7 @@ export function render(root, rerender, go) {
     return;
   }
   // stile «B · Quattro pilastri», come sul PC: totale con la barra colorata, poi un riquadro per pilastro
-  const p = d.pilastri || {};
+  const p = pilastriDi(d);
   const tot = p.totale ?? PILASTRI.reduce((a, [k]) => a + (p[k] || 0), 0);
   const inc0 = d.incassi || {};
   const big = h("div.card.iv-big", { "data-keep": "" },
@@ -118,14 +119,18 @@ export function render(root, rerender, go) {
       h("span.muted", {}, ` · media ${M.fmtEur(inc0.media_mese, true)} al mese`)) : null,
     h("div.pil-stack", {}, PILASTRI.map(([k, , col]) => h("i", { style: { width: `${tot > 0 ? (p[k] || 0) / tot * 100 : 0}%`, background: col } }))),
     h("div.pil-leg", {}, PILASTRI.map(([, n, col]) => h("span", {}, h("i", { style: { background: col } }), n))));
-  const pil = h("div.pil-grid", { "data-keep": "" }, PILASTRI.map(([k, n, col]) => pilastro(k, n, col, p[k] || 0, tot, d)));
+  const pil = h("div.pil-grid", { "data-keep": "" }, PILASTRI.map(([k, n, col]) => pilastro(k, n, col, p[k] || 0, tot, d, p)));
 
   // prossime scadenze
   const sc = d.scadenze || [];
   const scad = h("div.card", { "data-fold": "iv-scad" }, h("div.card-title", {}, "⏳ Prossime scadenze"),
     sc.length ? [
       h("div.iv-sum", {}, "Nei prossimi 3 mesi si sbloccano ", h("b", { style: { color: C.green } }, eur0(sblocchi(sc, 92))),
-        ", entro un anno ", h("b", {}, eur0(sblocchi(sc, 366))), "."),
+        ", entro un anno ", h("b", {}, eur0(sblocchi(sc, 366))), ".",
+        d.btp?.n ? [h("br"), `BTP: a scadenza ${eur0(d.btp.finale)}, guadagno netto `,
+          h("b", { style: { color: C.green } }, "+" + eur0(d.btp.guadagno_netto))] : null,
+        d.buoni?.n ? [h("br"), `Buoni: a scadenza netti ${eur0(d.buoni.finale_netto)}, guadagno netto `,
+          h("b", { style: { color: C.green } }, "+" + eur0(d.buoni.guadagno_netto))] : null),
       h("div.iv-list", {}, sc.slice(0, 8).map((s) => h("div.iv-row", {},
         h("span.pil-pill" + (daysTo(s.data) <= 30 ? ".near" : s.tipo === "BTP" ? ".btp" : ".buono"), {}, quando(s.data)),
         h("div.iv-l", { style: { flex: 1 } }, h("b", {}, `${s.tipo} · ${s.nome}`), h("div.small.muted", {}, dIso(s.data))),
