@@ -55,7 +55,12 @@ export function render(root, rerender, goMonth) {
       netToggle(view.netM, (v) => { view.netM = v; rerender(); })),
     bars(yt.months.map((x, i) => ({ label: M.MESI_BREVI[i][0], a: entOf(x), b: x.sp })),
       { net: view.netM, sel, onPick: (i) => goMonth(y, i + 1) }),
-    h("div.legend", {}, "Tocca un mese per aprirlo"));
+    h("div.legend", {}, "Tocca un mese per aprirlo"),
+    // i numeri dell'anno scelto (prima in «Anno per anno» del Patrimonio), senza confronto con l'anno prima
+    h("div.yr-sum", { id: "yr-sum" }, h("b", {}, String(y)), ` · ${MODI[mode][2]}: `,
+      h("b", { style: { color: C.green } }, M.fmtEur(en)), " · spese ", h("b", { style: { color: C.red } }, M.fmtEur(tot.sp)),
+      " · rimane ", h("b", { style: { color: rv >= 0 ? C.green : C.red } }, M.fmtEur(rv, true)),
+      nmesi ? [" · al mese ", h("b", {}, M.fmtEur(rv / nmesi, true))] : null));
     // cifre tonde, così le quattro colonne stanno nello schermo del telefono
     const n0 = (v) => M.fmtEur(Math.round(v)).replace(",00 €", " €");
     const r0 = (v) => M.fmtEur(Math.round(v), true).replace(",00 €", " €");

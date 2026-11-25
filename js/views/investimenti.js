@@ -6,8 +6,6 @@ import * as M from "../model.js";
 import { h, C, fill, bars } from "../ui.js";
 import { patrimonioCard } from "./funzioni.js";
 import { view as meseView } from "./mese.js";
-import { view as annoView, yearSeries } from "./anno.js";
-import { yearsPicker } from "./parts.js";
 
 const K_LINK = "cf.investLink";
 export const view = { y: new Date().getFullYear(), extra: false };     // extra: pulsante «Extra», spento a ogni apertura
@@ -172,7 +170,8 @@ export function render(root, rerender, go) {
       h("div.iv-r", {}, h("b", { style: { color: x.importo >= 0 ? C.green : C.red } },
         (x.importo >= 0 ? "+" : "−") + M.fmtEur(Math.abs(x.importo))))))) : null) : null;
 
-  // come sul PC: incassi degli investimenti mese per mese dell'anno scelto e, sotto, «Anno per anno» (che sceglie l'anno)
+  // come sul PC: incassi degli investimenti mese per mese, l'anno con le frecce ‹ › («Anno per anno» tolto: i numeri
+  // dell'anno stanno in Panoramica, sotto «Mese per mese»)
   const y = view.y;
   const movs = D.allMovs(y);
   const vals = Array.from({ length: 12 }, (_, i) => M.monthTotals(movs, y, i + 1).per_tipo[M.T.INVESTIMENTO] || 0);
@@ -182,7 +181,10 @@ export function render(root, rerender, go) {
   const best = vals.some(Boolean) ? vals.indexOf(Math.max(...vals)) : -1;
   const openMonth = (i) => { meseView.y = y; meseView.m = i + 1; go?.("mese"); };
   const mesi = h("div.card", { "data-keep": "", id: "iv-mesi" },
-    h("div.card-title", {}, `💶 Incassi mese per mese · ${y}`),
+    h("div.card-title.row.between", {}, h("span", {}, `💶 Incassi mese per mese · ${y}`),
+      h("span.iv-yr", {}, h("button.btn", { type: "button", id: "iv-prev", onclick: () => { view.y = y - 1; rerender(); } }, "‹"),
+        h("button.btn", { type: "button", id: "iv-next", disabled: y >= today.getFullYear(),
+          onclick: () => { view.y = y + 1; rerender(); } }, "›"))),
     h("div.row.between", {}, h("div.big-val", { style: { color: incTot >= 0 ? C.green : C.red } }, M.fmtEur(incTot, true)),
       h("div.small.muted", { style: { textAlign: "right" } }, nm ? `media ${M.fmtEur(incTot / nm, true)} al mese` : "",
         best >= 0 && vals[best] > 0 ? h("div", {}, `migliore: ${M.MESI[best].toLowerCase()} ${M.fmtEur(vals[best], true)}`) : null)),
@@ -190,16 +192,12 @@ export function render(root, rerender, go) {
       onPick: openMonth, height: 150 }),
     h("div.legend", {}, h("i", { style: { color: C.green } }, "■ "), "incassi", h("i", { style: { color: C.red } }, "  ■ "),
       "bolli e costi — tocca un mese per aprirlo"));
-  const anni = yearsPicker(yearSeries(meseView.mode), y, (yy) => { view.y = yy; rerender(); },
-    { net: annoView.netY, onNet: (v) => { annoView.netY = v; rerender(); },
-      onOpen: (yy) => { annoView.y = yy; annoView.ysel = yy; annoView.tab = "mesi"; go?.("anno"); } });
-  if (anni) anni.dataset.keep = "";
 
   // lo storico del patrimonio mese per mese sta qui (prima era in Panoramica), come sul PC
   const storia = patrimonioCard(view.extra);
   if (storia) storia.dataset.keep = "";
   // (niente più «Il file, foglio per foglio», come sul PC)
-  fill(root, big, pil, mesi, scad, anni, head, incassi, storia, linkCard(rerender));
+  fill(root, big, pil, mesi, scad, head, incassi, storia, linkCard(rerender));
 }
 
 
