@@ -571,3 +571,5 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .yr-sum { font-size: 13px; margin-top: 8px; line-height: 1.5; color: var(--muted); }
 .yr-sum b { color: var(--text); }
 .iv-yr { display: flex; gap: 6px; } .iv-yr .btn { padding: 2px 12px; font-size: 16px; }
+.stru-h { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--muted);
+  margin: 10px 0 2px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }

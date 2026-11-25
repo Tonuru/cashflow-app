@@ -133,7 +133,7 @@ export function patrimonioCard(conExtra = false) {
   const rows = M.patrimonioStoria(D.lista("personal", "patrimonio"), conExtra);
   if (!rows.length) return null;
   const last = rows[rows.length - 1];
-  const shown = rows.slice(-12);
+  const shown = rows.slice(-6);          // piccolo: gli ultimi sei mesi
   const max = Math.max(...shown.map((r) => Number(r.mostrato || 0)), 1);
   return h("div.card", { "data-fold": "patrimonio" }, h("div.card-title", {}, "📈 Storico del patrimonio"),
     h("div.big-val", {}, M.fmtEur(last.mostrato)),

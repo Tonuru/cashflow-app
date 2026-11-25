@@ -158,6 +158,21 @@ export function render(root, rerender, go) {
       sc.length > 8 ? h("div.small.muted.center", {}, `… e altre ${sc.length - 8} (tutte nell'app Investimenti sul PC)`) : null]
       : h("div.empty", {}, "Nessun buono o BTP in scadenza."));
 
+  // tutti gli strumenti di adesso (conti, buoni, BTP), divisi per tipo, come sul PC
+  const TIPI = [["Conto corrente", "Conti correnti"], ["Buono postale", "Buoni postali"], ["BTP", "BTP e obbligazioni"]];
+  const st = d.strumenti || [];
+  const strumenti = st.length ? h("div.card", { id: "iv-stru", "data-fold": "iv-stru" }, h("div.card-title", {}, "🧾 I miei strumenti"),
+    TIPI.map(([t, nome]) => {
+      const xs = st.filter((x) => x.tipo === t).sort((a, b) => b.valore - a.valore);
+      if (!xs.length) return null;
+      return [h("div.stru-h", {}, h("span", {}, `${nome} · ${xs.length}`), h("b", {}, eur0(xs.reduce((a, x) => a + x.valore, 0)))),
+        h("div.iv-list", {}, xs.map((x) => h("div.iv-row", {},
+          h("div.iv-l", {}, h("b", {}, x.nome), h("div.small.muted", {}, x.pilastro + (x.scadenza ? ` · scade ${dIso(x.scadenza)}` : ""))),
+          h("div.iv-r", {}, h("b", {}, M.fmtEur(x.valore)),
+            x.rende ? h("div.small", { style: { color: x.rende >= 0 ? C.green : C.red } },
+              `${M.fmtEur(x.rende, true)} ${t === "Conto corrente" ? "l'anno" : "a scadenza"}`) : null))))];
+    })) : null;
+
   // incassi
   const inc = d.incassi || {};
   const incassi = inc.anno ? h("div.card", { "data-fold": "iv-inc" }, h("div.card-title", {}, `💶 Elenco degli incassi ${inc.anno}`),
@@ -165,7 +180,7 @@ export function render(root, rerender, go) {
       tile("Media al mese", eur0(inc.media_mese), "")),
     (inc.per_banca || []).length ? h("div.iv-sum", {}, (inc.per_banca || []).slice(0, 5).map(([bk, v], i) =>
       [i ? " · " : "", `${bk} `, h("b", {}, eur0(v))])) : null,
-    (inc.ultimi || []).length ? h("div.iv-list", {}, inc.ultimi.map((x) => h("div.iv-row", {},
+    (inc.ultimi || []).length ? h("div.iv-list", {}, inc.ultimi.slice(0, 4).map((x) => h("div.iv-row", {},
       h("div.iv-l", {}, h("b", {}, x.info || x.banca), h("div.small.muted", {}, `${dIso(x.data)} · ${x.banca}`)),
       h("div.iv-r", {}, h("b", { style: { color: x.importo >= 0 ? C.green : C.red } },
         (x.importo >= 0 ? "+" : "−") + M.fmtEur(Math.abs(x.importo))))))) : null) : null;
@@ -197,7 +212,8 @@ export function render(root, rerender, go) {
   const storia = patrimonioCard(view.extra);
   if (storia) storia.dataset.keep = "";
   // (niente più «Il file, foglio per foglio», come sul PC)
-  fill(root, big, pil, mesi, scad, head, incassi, storia, linkCard(rerender));
+  if (strumenti) strumenti.dataset.keep = "";
+  fill(root, big, pil, strumenti, mesi, scad, head, incassi, storia, linkCard(rerender));
 }
 
 
