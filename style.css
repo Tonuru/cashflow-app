@@ -352,7 +352,7 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .qa-seg2 button.on { background: #8A4FE0; color: #fff; font-weight: 800; }
 .qa-divnote { text-align: center; font-size: 12.5px; color: #CFC2EE; } .qa-divnote b { color: #fff; }
 .qa-cats { flex: 1; min-height: 120px; display: flex; flex-direction: column; gap: 6px; }
-.qa-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; align-content: start;
+.qa-grid { flex: 1; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; align-content: start;
   padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .qa-cat { height: 70px; border-radius: 14px; background: #1A212C; border: 1px solid #232D3A; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px; padding: 0 4px; text-align: center; }
@@ -384,7 +384,7 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .qa-back { justify-self: start; display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: #7FAEFF;
   padding: 6px 10px 6px 4px; border-radius: 10px; } .qa-back-a { font-size: 22px; line-height: 1; margin-top: -2px; }
 .qa-subcat { display: flex; align-items: center; gap: 6px; font-size: 16px; } .qa-subcat .qa-ci { font-size: 20px; }
-.qa-subs { flex: 1; overflow-y: auto; display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; gap: 8px;
+.qa-subs { flex: 1; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; gap: 8px;
   padding: 2px 0 4px; -webkit-overflow-scrolling: touch; }
 .qa-sub { height: 44px; padding: 0 16px; border-radius: 22px; background: #1A212C; border: 1px solid #232D3A; font-size: 14px;
   font-weight: 600; color: #C3CBD6; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
