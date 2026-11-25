@@ -401,9 +401,10 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .qa.com .qa-sub.on, .qa.com .qa-sub.none.on { background: #2A1E44; border-color: #8A4FE0; color: #D9C6FF; }
 /* Investimenti (solo da guardare) */
 .iv-head .iv-file { font-size: 12px; color: var(--muted); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iv-big { text-align: center; background: linear-gradient(160deg, #16352A, #1A2640 70%); }
-.iv-tot-t { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: #9FE3C0; }
-.iv-tot { font-size: 30px; font-weight: 800; letter-spacing: -.5px; color: #7CF3B9; }
+.iv-big.mhero { text-align: center; background: linear-gradient(135deg, #0E5A45, #1D5B78 55%, #3A2E7A);
+  border: 1px solid rgba(255,255,255,.10); }
+.iv-big .iv-sub { font-size: 12px; opacity: .75; }
+.iv-big .iv-chips { margin-top: 12px; }
 .iv-stats { grid-template-columns: repeat(2, 1fr); margin-top: 10px; }
 .iv-sum { font-size: 13px; margin: 2px 0 8px; line-height: 1.45; }
 .iv-list { display: flex; flex-direction: column; }
@@ -414,14 +415,20 @@ header.top:has(.top-back) .top-title { flex: 1; }
 .iv-box { background: var(--input); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
 .iv-kv { display: flex; justify-content: space-between; font-size: 13.5px; padding: 3px 0; } .iv-kv span { color: var(--muted); }
 /* Patrimonio stile «B · Quattro pilastri» (come sul PC) */
-.iv-big .pil-stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #2A323E; margin: 12px 0 8px; }
+.iv-big .pil-stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: rgba(255,255,255,.2); margin: 12px 0 8px; }
 .iv-big .pil-stack i { display: block; height: 100%; }
-.pil-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.pil-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; font-size: 12px; color: #EAF2FF; }
 .pil-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
-.card.pil { border-top: 4px solid var(--accent); margin: 8px 0; }
-.iv-big .pil-extra { margin-top: 10px; font-size: 13px; padding: 6px 14px; }
-.iv-big .pil-extra.on { background: #2A1F3D; border-color: #8b5cf6; color: #D9C6FF; }
-.pil-pct { background: #1E2D4A; border-radius: 10px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+.card.pil { border-left: 4px solid var(--c, var(--accent)); margin: 8px 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, #1B212A), #1B212A 70%); }
+.pil-h { display: flex; align-items: center; gap: 10px; }
+.pil-ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-style: normal; font-size: 17px; flex: none; background: color-mix(in srgb, var(--c) 22%, transparent); }
+.pil-n { flex: 1; min-width: 0; color: var(--muted); }
+.iv-big .pil-extra { margin-top: 10px; font-size: 13px; padding: 6px 14px; border-radius: 15px; color: #EAF2FF;
+  background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.22); }
+.iv-big .pil-extra.on { background: #fff; border-color: #fff; color: #12324A; font-weight: 800; }
+.pil-pct { background: color-mix(in srgb, var(--c, #4C8DFF) 22%, transparent); border-radius: 10px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
 .pil-v { font-size: 24px; font-weight: 800; letter-spacing: -.4px; margin: 4px 0 6px; }
 .pil-bar { height: 6px; border-radius: 3px; background: #2A323E; overflow: hidden; margin-bottom: 8px; }
 .pil-bar i { display: block; height: 100%; border-radius: 3px; }

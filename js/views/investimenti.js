@@ -89,13 +89,18 @@ function dettaglio(k, d, p, conExtra) {
         h("b", {}, M.fmtEur(p.totale_extra)), ")"]];
 }
 
+const ICONE = { liquidita: "💶", fondo: "🛡️", spese: "📅", lungo: "📈" };
+
+/** Un pilastro come i riquadri delle entrate sul PC (stile «A · come Il mio mese»): bordo colorato a sinistra,
+ *  icona e nome, la sua parte del totale, la cifra nel colore del pilastro e il dettaglio. */
 function pilastro(k, n, col, v, tot, d, p, conExtra) {
   const [righe, nota] = dettaglio(k, d, p, conExtra);
   const perc = tot > 0 ? Math.round(v / tot * 100) : 0;
-  return h("div.card.pil", { id: `pil-${k}`, style: { borderTopColor: col } },
-    h("div.row.between", {}, h("b", {}, n), h("span.pil-pct", {}, `${perc}%`)),
-    h("div.pil-v", {}, M.fmtEur(v)),
+  return h("div.card.pil", { id: `pil-${k}`, style: { borderLeftColor: col, "--c": col } },
+    h("div.pil-h", {}, h("i.pil-ic", {}, ICONE[k] || "•"), h("b.pil-n", {}, n), h("span.pil-pct", {}, `${perc}%`)),
+    h("div.pil-v", { style: { color: col } }, M.fmtEur(v)),
     h("div.pil-bar", {}, h("i", { style: { width: `${perc}%`, background: col } })),
+    !righe.length ? h("div.small.muted", {}, "Nessuna voce in questo pilastro") : null,
     righe.slice(0, MAX_RIGHE).map(([nome, imp]) => h("div.pil-row", {}, h("span", {}, nome), h("b", {}, M.fmtEur(imp)))),
     righe.length > MAX_RIGHE ? h("div.small.muted", {}, `e altri ${righe.length - MAX_RIGHE}`) : null,
     nota ? h("div.pil-note", {}, nota) : null);
@@ -120,18 +125,21 @@ export function render(root, rerender, go) {
     fill(root, head, h("div.card", { "data-keep": "" }, h("p", { style: { color: C.amber } }, `⚠️ ${d.errore}`)));
     return;
   }
-  // stile «B · Quattro pilastri», come sul PC: totale con la barra colorata, poi un riquadro per pilastro
+  // stile «B · Quattro pilastri» con l'aspetto «A · come Il mio mese», come sul PC: banner colorato con il totale e
+  // la barra dei pilastri, poi un riquadro per pilastro
   const p = pilastriDi(d, view.extra);
   const tot = p.totale ?? PILASTRI.reduce((a, [k]) => a + (p[k] || 0), 0);
   const inc0 = d.incassi || {};
-  const big = h("div.card.iv-big", { "data-keep": "" },
-    h("div.iv-tot-t", {}, "INVESTIMENTI OGGI"), h("div.iv-tot", {}, M.fmtEur(tot)),
-    inc0.anno ? h("div.small", {}, `Incassi ${inc0.anno}: `, h("b", { style: { color: C.green } }, M.fmtEur(inc0.totale_anno, true)),
-      h("span.muted", {}, ` · media ${M.fmtEur(inc0.media_mese, true)} al mese`)) : null,
+  const chip = (t, v) => h("div.mh-chip", {}, h("div", {}, t), h("b", {}, v));
+  const big = h("div.mhero.iv-big", { "data-keep": "" },
+    h("div.mh-t", {}, "INVESTIMENTI OGGI"), h("div.mh-v.iv-tot", {}, M.fmtEur(tot)),
+    h("div.iv-sub", {}, view.extra ? "con gli Extra" : "senza gli Extra"),
     h("div.pil-stack", {}, PILASTRI.map(([k, , col]) => h("i", { style: { width: `${tot > 0 ? (p[k] || 0) / tot * 100 : 0}%`, background: col } }))),
     h("div.pil-leg", {}, PILASTRI.map(([, n, col]) => h("span", {}, h("i", { style: { background: col } }), n))),
     p.extra ? h("button.btn.pil-extra" + (view.extra ? ".on" : ""), { type: "button",
-      onclick: () => { view.extra = !view.extra; rerender(); } }, view.extra ? "－ Nascondi Extra" : "＋ Mostra Extra") : null);
+      onclick: () => { view.extra = !view.extra; rerender(); } }, view.extra ? "－ Nascondi Extra" : "＋ Mostra Extra") : null,
+    inc0.anno ? h("div.mh-chips.iv-chips", {}, chip(`Incassi ${inc0.anno}`, M.fmtEur(inc0.totale_anno, true)),
+      chip("Media al mese", M.fmtEur(inc0.media_mese, true)), chip("Extra", M.fmtEur(p.extra || 0))) : null);
   const pil = h("div.pil-grid", { "data-keep": "" }, PILASTRI.map(([k, n, col]) => pilastro(k, n, col, p[k] || 0, tot, d, p, view.extra)));
 
   // prossime scadenze
